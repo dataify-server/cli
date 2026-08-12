@@ -332,18 +332,6 @@ dataify google_search --q "pizza" --arg-json json=1
 dataify request_web_unlocker --url https://example.com --type html
 ```
 
-### 查询任务状态
-
-```bash
-dataify query_common_collection_api_task_status --status -1 --page 1 --pageSize 10
-```
-
-如果 `page`、`pageSize` 需要数字类型，可以写成：
-
-```bash
-dataify query_common_collection_api_task_status --arg-json status=-1 --arg-json page=1 --arg-json pageSize=10
-```
-
 ## 输出原始结果
 
 默认情况下，CLI 会尽量输出工具返回的主要内容。

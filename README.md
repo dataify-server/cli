@@ -96,12 +96,6 @@ Call the web unlocker:
 dataify request_web_unlocker --url https://example.com --type html
 ```
 
-Call a status query with integer-like values:
-
-```bash
-dataify query_common_collection_api_task_status --status -1 --page 1 --pageSize 10
-```
-
 ## Arguments
 
 Unknown `--name value` flags are sent as MCP tool arguments. Dashes are converted to underscores, so `--no-cache true` becomes `no_cache`.
@@ -110,7 +104,6 @@ More explicit forms are available:
 
 ```bash
 dataify call google_search --arg q=pizza --arg json=1
-dataify call query_common_collection_api_task_status --arg-json page=1
 dataify call google_search --args-json '{"q":"pizza","json":"1"}'
 dataify call google_search --args-file params.json
 ```

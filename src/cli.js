@@ -211,6 +211,5 @@ Examples:
   dataify
   dataify google_search --q "pizza" --json 1
   dataify request_web_unlocker --url https://example.com --type html
-  dataify call query_common_collection_api_task_status --status -1 --page 1 --pageSize 10
 `;
 }
