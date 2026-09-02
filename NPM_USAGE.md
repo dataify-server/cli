@@ -169,22 +169,16 @@ npx dataify-mcp-cli google_search --q "pizza" --json 1
 ### Windows PowerShell
 
 ```powershell
-$env:DATAIFY_MCP_TOKEN="YOUR_TOKEN"
+$env:DATAIFY_API_TOKEN="YOUR_TOKEN"
 ```
 
 ### Windows cmd
 
 ```bat
-set DATAIFY_MCP_TOKEN=YOUR_TOKEN
+set DATAIFY_API_TOKEN=YOUR_TOKEN
 ```
 
 ### macOS / Linux
-
-```bash
-export DATAIFY_MCP_TOKEN="YOUR_TOKEN"
-```
-
-也支持：
 
 ```bash
 export DATAIFY_API_TOKEN="YOUR_TOKEN"

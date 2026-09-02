@@ -43,7 +43,6 @@ export function resolveRuntimeOptions(cliOptions = {}) {
     server: DEFAULT_SERVER,
     token:
       cliOptions.token ||
-      process.env.DATAIFY_MCP_TOKEN ||
       process.env.DATAIFY_API_TOKEN ||
       config.token ||
       "",

@@ -202,7 +202,7 @@ Argument forms:
   --stdin            Read a JSON object from stdin and merge it into arguments
 
 Environment:
-  DATAIFY_MCP_TOKEN, DATAIFY_API_TOKEN, DATAIFY_MCP_TIMEOUT
+  DATAIFY_API_TOKEN, DATAIFY_MCP_TIMEOUT
 
 Fixed MCP URL:
   ${DEFAULT_SERVER}?token=<your_api_token>&tools=${DEFAULT_TOOLS}

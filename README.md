@@ -37,19 +37,19 @@ Environment variables also work and override the saved config:
 PowerShell:
 
 ```powershell
-$env:DATAIFY_MCP_TOKEN="YOUR_TOKEN"
+$env:DATAIFY_API_TOKEN="YOUR_TOKEN"
 ```
 
 cmd.exe:
 
 ```bat
-set DATAIFY_MCP_TOKEN=YOUR_TOKEN
+set DATAIFY_API_TOKEN=YOUR_TOKEN
 ```
 
 macOS/Linux shells:
 
 ```bash
-export DATAIFY_MCP_TOKEN=YOUR_TOKEN
+export DATAIFY_API_TOKEN=YOUR_TOKEN
 ```
 
 ## Commands
