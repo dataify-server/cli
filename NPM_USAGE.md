@@ -286,7 +286,7 @@ dataify example_tool --arg-json enabled=true
 Windows PowerShell：
 
 ```powershell
-dataify google_search --args-json '{\"q\":\"pizza\",\"json\":1}'
+dataify google_search --args-json '{"q":"pizza","json":1}'
 ```
 
 macOS / Linux：
