@@ -27,7 +27,7 @@ export class McpHttpClient {
       capabilities: {},
       clientInfo: {
         name: "dataify-mcp-cli",
-        version: "0.1.9"
+        version: "0.1.50"
       }
     });
 

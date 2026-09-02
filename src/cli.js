@@ -4,7 +4,7 @@ import { DEFAULT_SERVER, DEFAULT_TOOLS, configPath, readConfig, resolveRuntimeOp
 import { formatToolResult, printToolSchema, printTools, writeOutput } from "./output.js";
 import { runInteractive } from "./repl.js";
 
-const VERSION = "0.1.9";
+const VERSION = "0.1.50";
 
 export async function main(argv, options = {}) {
   const parsed = parseCli(argv);

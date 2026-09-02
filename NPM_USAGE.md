@@ -97,7 +97,7 @@ dataify
 /_____/\__,_/\__/\__,_/_/_/  \__, /  
                              /____/   
 
-Dataify MCP CLI 0.1.9 interactive mode
+Dataify MCP CLI 0.1.50 interactive mode
 Common commands:
   /tools                              List available tools
   /schema <tool>                     Show tool parameters
