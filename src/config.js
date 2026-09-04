@@ -48,7 +48,7 @@ export function resolveRuntimeOptions(cliOptions = {}) {
       "",
     tools: DEFAULT_TOOLS,
     timeoutMs: parseTimeout(timeoutValue),
-    debug: Boolean(cliOptions.debug)
+    debug: parseBooleanOption(cliOptions.debug)
   };
 }
 
@@ -78,4 +78,22 @@ export function parseTimeout(value) {
     return Math.round(amount * 60000);
   }
   return Math.round(amount);
+}
+
+function parseBooleanOption(value) {
+  if (value === undefined || value === null) {
+    return false;
+  }
+  if (Array.isArray(value)) {
+    return parseBooleanOption(value.at(-1));
+  }
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  const text = String(value).trim().toLowerCase();
+  if (!text) {
+    return true;
+  }
+  return !["false", "0", "no", "off"].includes(text);
 }

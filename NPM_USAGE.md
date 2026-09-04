@@ -79,6 +79,32 @@ dataify config path
 ~/.dataify-mcp-cli/config.json
 ```
 
+Token 使用优先级：
+
+```text
+命令行 --token -> 环境变量 DATAIFY_API_TOKEN -> 本地配置文件 token
+```
+
+如果在交互终端里直接执行 `dataify mcp` 或 `dataify init` 时还没有配置 token，CLI 会提示输入 token 并自动保存。非交互环境请先用 `dataify config set --token` 或直接传 `--token`。
+
+## 初始化向导
+
+执行：
+
+```bash
+dataify init
+```
+
+常见非交互示例：
+
+```bash
+dataify init --token YOUR_TOKEN --yes
+dataify init --token YOUR_TOKEN --skip-mcp --skip-skill
+dataify init --github-token YOUR_GITHUB_TOKEN
+```
+
+初始化向导会优先使用已有 token；在交互终端里如果还没有 token，会提示输入并保存，然后可选地安装 MCP 配置和 Dataify skills。
+
 ## 交互模式
 
 直接执行：
@@ -97,11 +123,18 @@ dataify
 /_____/\__,_/\__/\__,_/_/_/  \__, /  
                              /____/   
 
-Dataify MCP CLI 0.1.50 interactive mode
+Dataify MCP CLI 0.1.51 interactive mode
 Common commands:
+  /init                              Run the setup wizard
   /tools                              List available tools
+  /balance                           Show account balance
+  /serp                              Choose and call a SERP tool
+  /scraper                           Choose and call a scraper tool
+  /webunlock                         Choose and call a Web Unlocker tool
   /schema <tool>                     Show tool parameters
   /call <tool> --param value         Call a tool
+  /mcp                               Install MCP configs for agents
+  /skill                             Install Dataify skills
   google_search --q "pizza"          Call a tool directly
   /retry                             Run the previous command again
   /clear                             Clear the screen
@@ -117,9 +150,16 @@ dataify>
 交互模式中可以输入：
 
 ```text
+/init
 /tools
+/balance
+/serp
+/scraper
+/webunlock
 /schema google_search
 /call google_search --q "pizza" --arg-json json=1
+/mcp
+/skill
 /retry
 /exit
 ```
@@ -128,6 +168,7 @@ dataify>
 
 ```text
 tools
+balance
 schema google_search
 google_search --q "pizza" --arg-json json=1
 ```

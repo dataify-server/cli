@@ -1,80 +1,99 @@
 import readline from "node:readline/promises";
 import { stdin, stdout, stderr } from "node:process";
+import { logoText } from "./brand.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit"]);
 
 export async function runInteractive(execute, options = {}) {
+  let lastTokens = null;
+  const history = [];
+  stdout.write(introText(options.version));
+
+  while (true) {
+    let line;
+    try {
+      line = await promptInteractiveLine(history);
+    } catch (error) {
+      if (error?.code === "ERR_USE_AFTER_CLOSE") {
+        break;
+      }
+      throw error;
+    }
+
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+    rememberHistory(history, line);
+
+    const normalizedCommand = normalizeCommandName(trimmed);
+    if (EXIT_COMMANDS.has(normalizedCommand)) {
+      break;
+    }
+
+    if (normalizedCommand === "help" || normalizedCommand === "?") {
+      stdout.write(interactiveHelpText());
+      continue;
+    }
+
+    if (normalizedCommand === "clear") {
+      console.clear();
+      continue;
+    }
+
+    if (normalizedCommand === "retry") {
+      if (!lastTokens) {
+        stdout.write("No previous command to retry.\n");
+        continue;
+      }
+      await runTokens(execute, lastTokens);
+      continue;
+    }
+
+    let tokens;
+    try {
+      tokens = tokenizeCommandLine(normalizeInteractiveInput(trimmed));
+    } catch (error) {
+      stderr.write(`${error.message}\n`);
+      continue;
+    }
+
+    if (tokens[0] === "dataify") {
+      tokens = tokens.slice(1);
+    }
+    if (tokens.length === 0) {
+      continue;
+    }
+
+    lastTokens = tokens;
+    await runTokens(execute, tokens);
+  }
+}
+
+async function promptInteractiveLine(history) {
   const rl = readline.createInterface({
     input: stdin,
     output: stdout,
+    history: [...history],
     historySize: 1000,
     completer
   });
 
-  let lastTokens = null;
-  stdout.write(introText(options.version));
+  rl.on("SIGINT", () => {
+    rl.close();
+  });
 
   try {
-    while (true) {
-      let line;
-      try {
-        line = await rl.question("dataify> ");
-      } catch (error) {
-        if (error?.code === "ERR_USE_AFTER_CLOSE") {
-          break;
-        }
-        throw error;
-      }
-
-      const trimmed = line.trim();
-      if (!trimmed) {
-        continue;
-      }
-
-      const normalizedCommand = normalizeCommandName(trimmed);
-      if (EXIT_COMMANDS.has(normalizedCommand)) {
-        break;
-      }
-
-      if (normalizedCommand === "help" || normalizedCommand === "?") {
-        stdout.write(interactiveHelpText());
-        continue;
-      }
-
-      if (normalizedCommand === "clear") {
-        console.clear();
-        continue;
-      }
-
-      if (normalizedCommand === "retry") {
-        if (!lastTokens) {
-          stdout.write("No previous command to retry.\n");
-          continue;
-        }
-        await runTokens(execute, lastTokens);
-        continue;
-      }
-
-      let tokens;
-      try {
-        tokens = tokenizeCommandLine(normalizeInteractiveInput(trimmed));
-      } catch (error) {
-        stderr.write(`${error.message}\n`);
-        continue;
-      }
-
-      if (tokens[0] === "dataify") {
-        tokens = tokens.slice(1);
-      }
-      if (tokens.length === 0) {
-        continue;
-      }
-
-      lastTokens = tokens;
-      await runTokens(execute, tokens);
-    }
+    return await rl.question("dataify> ");
   } finally {
     rl.close();
+  }
+}
+
+function rememberHistory(history, line) {
+  history.unshift(line);
+  if (history.length > 1000) {
+    history.pop();
   }
 }
 
@@ -160,17 +179,6 @@ ${quickStartText()}
 `;
 }
 
-function logoText() {
-  return `
-    ____        __        _ ____     
-   / __ \\____ _/ /_____ _(_) __/_  __
-  / / / / __ \`/ __/ __ \`/ / /_/ / / /
- / /_/ / /_/ / /_/ /_/ / / __/ /_/ / 
-/_____/\\__,_/\\__/\\__,_/_/_/  \\__, /  
-                             /____/   
-`;
-}
-
 function interactiveHelpText() {
   return `${quickStartText()}
 
@@ -179,9 +187,16 @@ function interactiveHelpText() {
 
 function quickStartText() {
   return `Common commands:
+  /init                              Run the setup wizard
   /tools                              List available tools
+  /balance                           Show account balance
+  /serp                              Choose and call a SERP tool
+  /scraper                           Choose and call a scraper tool
+  /webunlock                         Choose and call a Web Unlocker tool
   /schema <tool>                     Show tool parameters
   /call <tool> --param value         Call a tool
+  /mcp                               Install MCP configs for agents
+  /skill                             Install Dataify skills
   google_search --q "pizza"          Call a tool directly
   /retry                             Run the previous command again
   /clear                             Clear the screen
@@ -195,15 +210,29 @@ Tips:
 function completer(line) {
   const commands = [
     "/help",
+    "/init",
     "/tools",
+    "/balance",
+    "/serp",
+    "/scraper",
+    "/webunlock",
     "/schema",
     "/call",
+    "/mcp",
+    "/skill",
     "/retry",
     "/clear",
     "/exit",
     "tools",
+    "init",
+    "balance",
+    "serp",
+    "scraper",
+    "webunlock",
     "schema",
     "call",
+    "mcp",
+    "skill",
     "config"
   ];
   const hits = commands.filter((command) => command.startsWith(line));

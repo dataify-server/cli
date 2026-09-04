@@ -1,4 +1,5 @@
 import { DEFAULT_SERVER } from "./config.js";
+import { VERSION } from "./version.js";
 
 const JSON_RPC_VERSION = "2.0";
 const DEFAULT_PROTOCOL_VERSION = "2025-11-25";
@@ -27,7 +28,7 @@ export class McpHttpClient {
       capabilities: {},
       clientInfo: {
         name: "dataify-mcp-cli",
-        version: "0.1.50"
+        version: VERSION
       }
     });
 

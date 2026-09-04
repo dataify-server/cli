@@ -70,6 +70,30 @@ The config file is stored under your user home directory:
 ~/.dataify-mcp-cli/config.json
 ```
 
+Token priority is:
+
+```text
+--token -> DATAIFY_API_TOKEN -> saved config
+```
+
+## Init
+
+Run the setup wizard:
+
+```bash
+dataify init
+```
+
+Non-interactive examples:
+
+```bash
+dataify init --token YOUR_TOKEN --yes
+dataify init --token YOUR_TOKEN --skip-mcp --skip-skill
+dataify init --github-token YOUR_GITHUB_TOKEN
+```
+
+The wizard uses an existing token when available; in an interactive terminal it can prompt for a token, save it, then install MCP configs and Dataify skills.
+
 ## Quick Start
 
 List the tools available to your token:
@@ -78,10 +102,36 @@ List the tools available to your token:
 dataify tools
 ```
 
+Show your account balance:
+
+```bash
+dataify balance
+```
+
 Show a tool's parameter names and descriptions:
 
 ```bash
 dataify schema google_search
+```
+
+Choose a SERP, scraper, or web unlocker tool interactively:
+
+```bash
+dataify serp
+dataify scraper
+dataify webunlock
+```
+
+Install MCP configs for agent tools:
+
+```bash
+dataify mcp
+```
+
+Install Dataify skills:
+
+```bash
+dataify skill
 ```
 
 Call a tool directly:
@@ -123,9 +173,16 @@ Interactive commands can use a leading slash:
 
 ```text
 /help
+/init
 /tools
+/balance
+/serp
+/scraper
+/webunlock
 /schema google_search
 /call google_search --q "pizza" --arg-json json=1
+/mcp
+/skill
 /retry
 /clear
 /exit
@@ -135,6 +192,7 @@ The slash is optional:
 
 ```text
 tools
+balance
 schema google_search
 google_search --q "pizza" --arg-json json=1
 ```
@@ -154,6 +212,18 @@ npx dataify-mcp-cli google_search --q "pizza" --json 1 --token YOUR_TOKEN
 ```
 
 If you use `npx` often, configure the token globally with `dataify config set --token YOUR_TOKEN`, or use the `DATAIFY_API_TOKEN` environment variable.
+
+## Category Wizards
+
+The `serp`, `scraper`, and `webunlock` commands first list the tools in that category, then print the selected tool schema, then open one editable command line with defaults filled in.
+
+Example:
+
+```bash
+dataify serp google_search --q "pizza" --json 1
+dataify scraper amazon_product --url "https://www.amazon.com/dp/example"
+dataify webunlock request_web_unlocker --url https://example.com --type html
+```
 
 ## Environment Variables
 
@@ -195,6 +265,20 @@ macOS/Linux shells:
 
 ```bash
 export DATAIFY_MCP_TIMEOUT="3m"
+```
+
+Optional GitHub token for `dataify skill`:
+
+```powershell
+$env:GITHUB_TOKEN="YOUR_GITHUB_TOKEN"
+```
+
+```bat
+set GITHUB_TOKEN=YOUR_GITHUB_TOKEN
+```
+
+```bash
+export GITHUB_TOKEN="YOUR_GITHUB_TOKEN"
 ```
 
 ## List Tools

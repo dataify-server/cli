@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 
 const DEFAULT_TABLE_WIDTH = 100;
 const MIN_DESCRIPTION_WIDTH = 24;
@@ -31,6 +32,7 @@ export function formatToolResult(result, options = {}) {
 
 export function writeOutput(text, outputFile) {
   if (outputFile) {
+    fs.mkdirSync(path.dirname(outputFile), { recursive: true });
     fs.writeFileSync(outputFile, text, "utf8");
     return;
   }
@@ -87,8 +89,87 @@ export function printToolSchema(tool) {
   ]);
 }
 
+export function printBalance(result, options = {}) {
+  if (options.raw) {
+    return formatToolResult(result, options);
+  }
+
+  const payload = extractResultPayload(result);
+  const data = payload?.data && typeof payload.data === "object" ? payload.data : payload;
+  if (!data || typeof data !== "object") {
+    return formatToolResult(result, options);
+  }
+
+  const rows = [
+    {
+      Item: "Balance",
+      Value: formatAmount(data.balance),
+      Description: "Remaining Dataify credits or balance"
+    },
+    {
+      Item: "Total Recharge",
+      Value: formatAmount(data.totalRecharge ?? data.total_recharge),
+      Description: "Total recharged credits"
+    },
+    {
+      Item: "Total Used",
+      Value: formatAmount(data.totalUse ?? data.total_use),
+      Description: "Total consumed credits"
+    }
+  ].filter((row) => row.Value !== "");
+
+  if (!rows.length) {
+    return formatToolResult(result, options);
+  }
+
+  const message = payload?.message ? `Status: ${payload.message}\n\n` : "";
+  return `${message}${renderTable(rows, [
+    { key: "Item", title: "Item", maxWidth: 20 },
+    { key: "Value", title: "Value", maxWidth: 24, align: "right" },
+    { key: "Description", title: "Description", flex: true, minWidth: 24 }
+  ])}`;
+}
+
 function singleLine(text) {
   return String(text).replace(/\s+/g, " ").trim();
+}
+
+function extractResultPayload(result) {
+  if (result && Object.prototype.hasOwnProperty.call(result, "structuredContent")) {
+    return result.structuredContent;
+  }
+
+  const content = Array.isArray(result?.content) ? result.content : [];
+  const text = content
+    .filter((item) => item && item.type === "text" && typeof item.text === "string")
+    .map((item) => item.text)
+    .join("\n");
+  if (text) {
+    const parsed = tryParseJson(text);
+    if (parsed !== undefined) {
+      return parsed;
+    }
+  }
+
+  return result;
+}
+
+function formatAmount(value) {
+  if (value === undefined || value === null) {
+    return "";
+  }
+  if (typeof value === "object" && value !== null) {
+    if (typeof value.String === "string") {
+      return value.String;
+    }
+    if (typeof value.value === "string" || typeof value.value === "number") {
+      return String(value.value);
+    }
+    if (typeof value.amount === "string" || typeof value.amount === "number") {
+      return String(value.amount);
+    }
+  }
+  return String(value);
 }
 
 function schemaType(property) {

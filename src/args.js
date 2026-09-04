@@ -15,7 +15,24 @@ const GLOBAL_OPTIONS = new Set([
   "version"
 ]);
 
-const COMMANDS = new Set(["call", "tools", "list", "schema", "config", "chat", "repl", "help", "version"]);
+const COMMANDS = new Set([
+  "call",
+  "tools",
+  "list",
+  "schema",
+  "config",
+  "mcp",
+  "skill",
+  "init",
+  "balance",
+  "serp",
+  "scraper",
+  "webunlock",
+  "chat",
+  "repl",
+  "help",
+  "version"
+]);
 
 export function parseCli(argv) {
   const result = {
