@@ -1,6 +1,7 @@
 import readline from "node:readline";
 import readlinePromises from "node:readline/promises";
 import { stdin, stdout } from "node:process";
+import { t } from "./i18n.js";
 
 export async function promptConfirm(question, defaultValue = true) {
   const suffix = defaultValue ? "Y/n" : "y/N";
@@ -21,7 +22,7 @@ export async function promptConfirm(question, defaultValue = true) {
       if (["n", "no"].includes(answer)) {
         return false;
       }
-      stdout.write("Please enter y or n.\n");
+      stdout.write(`${t("prompt.enterYesNo")}\n`);
     }
   } finally {
     rl.close();
@@ -35,7 +36,7 @@ export function promptHidden(question) {
     let value = "";
 
     if (!input.isTTY || !output.isTTY || typeof input.setRawMode !== "function") {
-      reject(new Error("Interactive token input requires a TTY. Pass --token TOKEN instead."));
+      reject(new Error(t("prompt.ttyRequired")));
       return;
     }
 
@@ -54,7 +55,7 @@ export function promptHidden(question) {
     const onKeypress = (char, key = {}) => {
       if (key.ctrl && key.name === "c") {
         cleanup();
-        reject(new Error("Cancelled."));
+        reject(new Error(t("common.cancelled")));
         return;
       }
       if (key.name === "return") {

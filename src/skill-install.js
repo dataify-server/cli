@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { parseKnownOptions } from "./args.js";
+import { t } from "./i18n.js";
 import { createSelector } from "./select.js";
 import { withSpinner } from "./spinner.js";
 
@@ -21,28 +22,24 @@ const AGENTS = [
   {
     id: "universal",
     name: "Universal (.agents/skills)",
-    description: "Install once into the current project's .agents/skills directory.",
     root: (canonicalRoot) => canonicalRoot,
     detectInstalled: () => true
   },
   {
     id: "claude-code",
     name: "Claude Code",
-    description: "Link from .agents/skills into ~/.claude/skills.",
     root: () => path.join(CLAUDE_HOME, "skills"),
     detectInstalled: () => fs.existsSync(CLAUDE_HOME)
   },
   {
     id: "codex",
     name: "Codex",
-    description: "Uses the universal .agents/skills directory.",
     root: (canonicalRoot) => canonicalRoot,
     detectInstalled: () => fs.existsSync(CODEX_HOME) || fs.existsSync("/etc/codex")
   },
   {
     id: "cursor",
     name: "Cursor",
-    description: "Uses the universal .agents/skills directory.",
     root: (canonicalRoot) => canonicalRoot,
     detectInstalled: () => fs.existsSync(path.join(HOME, ".cursor"))
   }
@@ -66,21 +63,23 @@ export async function runSkillInstaller(tokens = []) {
 
   const agentItems = AGENTS.map((agent) => ({
     ...agent,
-    description: agent.id === "universal" ? `Install once into ${canonicalLabel}.` : agent.description
+    description: agent.id === "universal"
+      ? t("skill.agent.universal", { dir: canonicalLabel })
+      : t(`skill.agent.${agent.id}`)
   }));
 
-  const source = await withSpinner("Loading Dataify skills...", () => prepareSkillSource({ repo, ref, githubToken }), { delayMs: 0 });
+  const source = await withSpinner(t("skill.loading"), () => prepareSkillSource({ repo, ref, githubToken }), { delayMs: 0 });
   try {
     const skills = source.skills;
     if (skills.length === 0) {
-      throw new Error(`No skills found in ${repo}/${DEFAULT_SKILLS_PATH} at ${ref}.`);
+      throw new Error(t("skill.noSkills", { repo, path: DEFAULT_SKILLS_PATH, ref }));
     }
 
     const selectedAgents = await chooseAgents(agentItems, options);
     const selectedSkills = await chooseSkills(skills, options);
     const targets = buildTargets(selectedAgents, canonicalRoot);
 
-    process.stdout.write("\nInstalling selected skills...\n");
+    process.stdout.write(`\n${t("skill.installing")}\n`);
     const results = [];
     for (const skill of selectedSkills) {
       const result = await installSkillWithProgress({ source, repo, ref, githubToken, skill, canonicalRoot, targets });
@@ -88,22 +87,22 @@ export async function runSkillInstaller(tokens = []) {
       process.stdout.write(`${formatInstallResult(result)}\n`);
     }
 
-    process.stdout.write("\nDataify skill installation finished.\n\n");
+    process.stdout.write(`\n${t("skill.finished")}\n\n`);
     const succeeded = results.filter((result) => result.ok);
     const failed = results.filter((result) => !result.ok);
-    process.stdout.write(`Source: ${source.label}\n`);
-    process.stdout.write(`Installed skills: ${succeeded.length ? succeeded.map((result) => result.skill).join(", ") : "none"}\n`);
-    process.stdout.write("Target directories:\n");
+    process.stdout.write(`${t("skill.source", { source: source.label })}\n`);
+    process.stdout.write(`${t("skill.installedSkills", { skills: succeeded.length ? succeeded.map((result) => result.skill).join(", ") : t("skill.none") })}\n`);
+    process.stdout.write(`${t("skill.targetDirectories")}\n`);
     for (const target of targets) {
       process.stdout.write(`  ${target.names.join(", ")}: ${target.root}\n`);
     }
     if (failed.length > 0) {
       process.exitCode = 1;
-      process.stdout.write("\nFailed skills:\n");
+      process.stdout.write(`\n${t("skill.failedSkills")}\n`);
       for (const result of failed) {
         process.stdout.write(`  ${result.skill}: ${result.message}\n`);
       }
-      process.stdout.write("\nSome skills were not installed. Fix the failed item and run dataify skill again.\n");
+      process.stdout.write(`\n${t("skill.someFailed")}\n`);
     }
   } finally {
     await cleanupSource(source);
@@ -113,7 +112,7 @@ export async function runSkillInstaller(tokens = []) {
 async function chooseAgents(agentItems, options) {
   const ids = splitOptionList(options.agent ?? options.agents);
   if (ids.length > 0) {
-    return selectByIds(agentItems, ids, "agent");
+    return selectByIds(agentItems, ids, t("skill.label.agent"));
   }
 
   const defaultSelected = agentItems
@@ -123,7 +122,7 @@ async function chooseAgents(agentItems, options) {
   const selector = createSelector();
   try {
     return await selector.selectMany({
-      title: "Select agent tools to install Dataify skills",
+      title: t("skill.selectAgents"),
       items: agentItems,
       defaultSelected
     });
@@ -139,13 +138,13 @@ async function chooseSkills(skills, options) {
 
   const ids = splitOptionList(options.skill ?? options.skills);
   if (ids.length > 0) {
-    return selectByIds(skills, ids, "skill");
+    return selectByIds(skills, ids, t("skill.label.skill"));
   }
 
   const selector = createSelector();
   try {
     return await selector.selectMany({
-      title: "Select Dataify skills to download",
+      title: t("skill.selectSkills"),
       items: skills,
       defaultSelected: []
     });
@@ -167,7 +166,7 @@ async function prepareSkillSource({ repo, ref, githubToken }) {
   } catch (apiError) {
     const friendly = friendlyGithubError(apiError, githubToken);
     process.stderr.write(`${friendly}\n`);
-    process.stderr.write("Trying git clone fallback...\n");
+    process.stderr.write(`${t("skill.gitCloneFallback")}\n`);
   }
 
   return prepareGitSource({ repo, ref });
@@ -495,10 +494,10 @@ function selectByIds(items, ids, label) {
   const selectedIds = new Set(selected.map((item) => item.id.toLowerCase()));
   const missing = ids.filter((id) => !selectedIds.has(id.toLowerCase()));
   if (missing.length > 0) {
-    throw new Error(`Unknown ${label}: ${missing.join(", ")}`);
+    throw new Error(t("common.unknownItem", { label, items: missing.join(", ") }));
   }
   if (selected.length === 0) {
-    throw new Error(`Select at least one ${label}.`);
+    throw new Error(t("common.selectAtLeastOne", { label }));
   }
   return selected;
 }
@@ -595,12 +594,12 @@ function safeJoin(root, relativePath) {
 }
 
 function formatInstallResult(result) {
-  const status = result.ok ? "OK" : "FAILED";
+  const status = result.ok ? t("skill.status.ok") : t("skill.status.failed");
   if (!result.ok) {
     return `${status} ${result.skill} (${formatDuration(result.durationMs)}): ${result.message}`;
   }
-  const fallback = result.copiedFallbacks > 0 ? `, ${result.copiedFallbacks} copy fallback(s)` : "";
-  return `${status} ${result.skill} (${formatDuration(result.durationMs)}): ${result.fileCount} files -> ${result.targetCount} target(s)${fallback}`;
+  const fallback = result.copiedFallbacks > 0 ? t("skill.copyFallback", { count: result.copiedFallbacks }) : "";
+  return `${status} ${result.skill} (${formatDuration(result.durationMs)}): ${t("skill.result.ok", { fileCount: result.fileCount, targetCount: result.targetCount, fallback })}`;
 }
 
 function formatDuration(durationMs) {
@@ -633,25 +632,7 @@ function friendlyGithubError(error, githubToken) {
 }
 
 function skillHelpText() {
-  return `Dataify skill installer
-
-Usage:
-  dataify skill
-  dataify skill --agent universal,codex --skill serp-google-search
-  dataify skill --agent all --all
-
-Options:
-  --agent, --agents  Target agents: universal, claude-code, codex, cursor, all
-  --skill, --skills  Skill names, separated by comma. Use --all for every skill.
-  --all              Download every skill from the GitHub repository.
-  --dir DIR          Canonical skills directory. Default: ./.agents/skills
-  --repo OWNER/REPO  GitHub repository. Default: ${DEFAULT_REPO}
-  --ref REF          Git ref. Default: ${DEFAULT_REF}
-  --github-token TOK GitHub token when unauthenticated API is rate limited. Falls back to git clone if API fails.
-
-Source:
-  https://github.com/${DEFAULT_REPO}/tree/${DEFAULT_REF}/${DEFAULT_SKILLS_PATH}
-`;
+  return t("skill.help", { repo: DEFAULT_REPO, ref: DEFAULT_REF, path: DEFAULT_SKILLS_PATH });
 }
 
 function displayPath(value) {

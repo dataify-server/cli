@@ -10,6 +10,7 @@ const GLOBAL_OPTIONS = new Set([
   "pretty",
   "output",
   "header",
+  "language",
   "debug",
   "help",
   "version"
@@ -28,6 +29,7 @@ const COMMANDS = new Set([
   "logout",
   "whoami",
   "balance",
+  "language",
   "serp",
   "scraper",
   "webunlock",
@@ -109,6 +111,7 @@ export function parseToolArgs(tokens) {
     argsFile: "",
     stdin: false
   };
+  let lastArgKey = "";
 
   let index = 0;
   while (index < tokens.length) {
@@ -117,7 +120,12 @@ export function parseToolArgs(tokens) {
       throw new Error("Unexpected positional arguments after --");
     }
     if (!token.startsWith("-")) {
-      throw new Error(`Unexpected positional argument "${token}"`);
+      if (lastArgKey) {
+        args[lastArgKey] = `${args[lastArgKey]} ${token}`;
+        index += 1;
+        continue;
+      }
+      throw new Error(`Unexpected positional argument "${token}". Quote values containing spaces, e.g. --q "hello world".`);
     }
 
     const parsed = readOption(tokens, index);
@@ -125,32 +133,40 @@ export function parseToolArgs(tokens) {
 
     switch (parsed.key) {
       case "arg":
-        applyKeyValue(args, parsed.value, parseStringValue);
+        lastArgKey = applyKeyValue(args, parsed.value, parseStringValue);
         break;
       case "arg_json":
+        lastArgKey = "";
         applyKeyValue(args, parsed.value, parseJsonValue);
         break;
       case "args_json":
+        lastArgKey = "";
         mergeObject(args, parseJsonObject(parsed.value, "--args-json"));
         break;
       case "args_file":
+        lastArgKey = "";
         meta.argsFile = parsed.value;
         mergeObject(args, parseJsonObject(fs.readFileSync(parsed.value, "utf8"), parsed.value));
         break;
       case "stdin":
+        lastArgKey = "";
         meta.stdin = true;
         break;
       case "raw":
+        lastArgKey = "";
         meta.raw = toBoolean(parsed.value);
         break;
       case "pretty":
+        lastArgKey = "";
         meta.pretty = toBoolean(parsed.value);
         break;
       case "output":
+        lastArgKey = "";
         meta.output = parsed.value;
         break;
       default:
         setToolArg(args, parsed.key, parsed.value);
+        lastArgKey = parsed.key;
     }
   }
 
@@ -268,7 +284,9 @@ function applyKeyValue(target, raw, parser) {
   if (index <= 0) {
     throw new Error(`Invalid key/value "${raw}". Use key=value.`);
   }
-  target[normalizeKey(text.slice(0, index))] = parser(text.slice(index + 1));
+  const key = normalizeKey(text.slice(0, index));
+  target[key] = parser(text.slice(index + 1));
+  return key;
 }
 
 function mergeObject(target, source) {

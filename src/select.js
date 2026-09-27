@@ -1,11 +1,21 @@
 import fs from "node:fs";
 import readline from "node:readline";
+import { t } from "./i18n.js";
+import { createInterface as createPromiseInterface } from "node:readline/promises";
+import { clipToWidth, displayWidth, truncateToWidth, wrapToWidth } from "./display-width.js";
 
 export function createSelector() {
   if (process.stdin.isTTY && process.stdout.isTTY) {
+    if (supportsAnsi()) {
+      return {
+        selectOne: (options) => listSelectOne(options),
+        selectMany: (options) => checkboxSelectMany(options),
+        close: () => {}
+      };
+    }
     return {
-      selectOne: (options) => listSelectOne(options),
-      selectMany: (options) => checkboxSelectMany(options),
+      selectOne: (options) => numberedSelectOne(options),
+      selectMany: (options) => numberedSelectMany(options),
       close: () => {}
     };
   }
@@ -19,16 +29,233 @@ export function createSelector() {
   };
 }
 
+const FALLBACK_COLUMNS = 80;
+const FALLBACK_ROWS = 24;
+// 描述至少要有这么多列才值得显示，否则截断工具名，避免出现 " - 当…" 这种噪声。
+const MIN_DESCRIPTION_WIDTH = 12;
+// 工具名与描述之间的分隔符；固定宽度才能让每行的 "-" 纵向对齐。
+const ITEM_SEPARATOR = " - ";
+const SEPARATOR_WIDTH = 3;
+// 全屏选择器给标题/提示/空行/状态行预留的行数。
+const RESERVED_ROWS = 5;
+
+function terminalColumns() {
+  return Math.max(20, Number(process.stdout.columns) || FALLBACK_COLUMNS);
+}
+
+function terminalRows() {
+  return Math.max(6, Number(process.stdout.rows) || FALLBACK_ROWS);
+}
+
+function singleLine(text) {
+  return String(text ?? "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * 名字列宽度：取整个列表里最长的工具名，让每行的 "-" 纵向对齐。
+ * 但至少给描述留 MIN_DESCRIPTION_WIDTH 列，窄终端下宁可截断名字。
+ */
+function nameColumnWidth(items, prefixWidth = 0) {
+  const widest = items.reduce(
+    (max, item) => Math.max(max, displayWidth(singleLine(item?.name || ""))),
+    0
+  );
+  const budget = Math.max(1, terminalColumns() - prefixWidth);
+  return Math.min(widest, Math.max(1, budget - SEPARATOR_WIDTH - MIN_DESCRIPTION_WIDTH));
+}
+
+/**
+ * 渲染一个选项，保证只占一行且显示宽度不超过终端宽度：
+ * 名字列（固定宽度，左对齐补空格）+ " - " + 按剩余宽度截断的描述。
+ */
+function itemLine(item, prefix = "", nameWidth = 0) {
+  const budget = Math.max(1, terminalColumns() - displayWidth(prefix));
+  const name = singleLine(item?.name || "");
+  const description = singleLine(item?.description || "");
+
+  if (!description) {
+    return `${prefix}${clipToWidth(name, budget)}`;
+  }
+
+  const cap = Math.max(1, budget - SEPARATOR_WIDTH - MIN_DESCRIPTION_WIDTH);
+  const column = Math.min(Math.max(nameWidth, displayWidth(name)), cap);
+  const cell = clipToWidth(name, column);
+  const padded = `${cell}${" ".repeat(Math.max(0, column - displayWidth(cell)))}`;
+  const descriptionBudget = budget - column - SEPARATOR_WIDTH;
+  if (descriptionBudget < 1) {
+    return `${prefix}${padded.trimEnd()}`;
+  }
+  return `${prefix}${padded}${ITEM_SEPARATOR}${clipToWidth(description, descriptionBudget)}`;
+}
+
+// 全屏选择器的可视窗口，保证光标始终落在窗口内。
+function visibleWindow(items, cursor, rows) {
+  if (items.length <= rows) {
+    return { start: 0, end: items.length, scrolled: false };
+  }
+  const half = Math.floor(rows / 2);
+  const start = Math.min(Math.max(0, cursor - half), items.length - rows);
+  return { start, end: start + rows, scrolled: true };
+}
+
+function scrollHint(cursor, total, rows) {
+  return total > rows ? `  (${cursor + 1}/${total})` : "";
+}
+
+/**
+ * 按 ? 展开的完整描述面板：撑满终端宽度，内容按显示宽度折行，
+ * 行数不够时截断并补省略号，避免把列表挤出屏幕。
+ */
+function detailsPanel(item) {
+  const columns = terminalColumns();
+  const inner = Math.max(10, columns - 4);
+  const maxBody = Math.max(3, terminalRows() - RESERVED_ROWS - 6);
+  const name = clipToWidth(singleLine(item?.name || ""), Math.max(1, columns - 8));
+
+  let body = wrapToWidth(singleLine(item?.description || ""), inner);
+  let truncated = false;
+  if (body.length > maxBody) {
+    body = body.slice(0, maxBody);
+    truncated = true;
+  }
+
+  const fill = "─".repeat(Math.max(0, columns - displayWidth(name) - 5));
+  const out = [`┌─ ${name} ${fill}┐`];
+  body.forEach((line, index) => {
+    const isLast = index === body.length - 1;
+    const text = truncated && isLast ? `${truncateToWidth(line, inner - 1)}…` : line;
+    out.push(`│ ${text}${" ".repeat(Math.max(0, inner - displayWidth(text)))} │`);
+  });
+  out.push(`└${"─".repeat(Math.max(0, columns - 2))}┘`);
+  return out;
+}
+
+// 数字选择器没有光标，用 ?N 指定看第几项；只输入 ? 表示全部展开。
+function parseDetailRequest(answer, total) {
+  if (!answer.startsWith("?")) {
+    return null;
+  }
+  const rest = answer.slice(1).trim();
+  if (!rest) {
+    return Array.from({ length: total }, (_, index) => index);
+  }
+  const number = Number(rest);
+  if (Number.isInteger(number) && number >= 1 && number <= total) {
+    return [number - 1];
+  }
+  return [];
+}
+
+function writeDetails(indexes, items) {
+  const width = Math.max(20, terminalColumns() - 4);
+  for (const index of indexes) {
+    const item = items[index];
+    process.stdout.write(`\n${index + 1}. ${singleLine(item?.name || "")}\n`);
+    for (const line of wrapToWidth(singleLine(item?.description || ""), width)) {
+      process.stdout.write(`   ${line}\n`);
+    }
+  }
+  process.stdout.write("\n");
+}
+
+/**
+ * 数字列表的排版参数：序号左对齐补零宽（1 位 vs 2 位不会错位），
+ * 名字列宽度按同一前缀宽度计算，保证 "-" 纵向对齐。
+ */
+function numberedLayout(items) {
+  const indexWidth = String(items.length).length;
+  const prefixWidth = displayWidth(`  ${"9".repeat(indexWidth)}. [*] `);
+  return {
+    label: (index) => String(index + 1).padStart(indexWidth),
+    nameWidth: nameColumnWidth(items, prefixWidth)
+  };
+}
+
+function supportsAnsi() {
+  if (process.platform !== "win32") {
+    return true;
+  }
+  return Boolean(
+    process.env.TERM ||
+    process.env.TERM_PROGRAM ||
+    process.env.WT_SESSION ||
+    process.env.COLORTERM ||
+    process.env.ConEmuANSI === "ON" ||
+    process.env.ANSICON
+  );
+}
+
+async function numberedSelectOne({ title, items, defaultSelected }) {
+  const defaultIndex = Math.max(0, items.findIndex((item) => item.id === defaultSelected));
+  const rl = createPromiseInterface({ input: process.stdin, output: process.stdout });
+
+  const layout = numberedLayout(items);
+  process.stdout.write(`\n${title}\n`);
+  items.forEach((item, index) => {
+    const marker = index === defaultIndex ? "*" : " ";
+    process.stdout.write(`${itemLine(item, `  ${layout.label(index)}. [${marker}] `, layout.nameWidth)}\n`);
+  });
+  process.stdout.write(`${t("select.detailsUsage")}\n`);
+
+  try {
+    while (true) {
+      const answer = (await rl.question(t("select.enterNumber"))).trim();
+      const detailRequest = parseDetailRequest(answer, items.length);
+      if (detailRequest) {
+        if (detailRequest.length === 0) {
+          process.stdout.write(`${t("select.detailsUsage")}\n`);
+        } else {
+          writeDetails(detailRequest, items);
+        }
+        continue;
+      }
+      const selected = parseSingleSelection(answer, items, defaultIndex);
+      if (selected) {
+        return selected;
+      }
+      process.stdout.write(`${t("select.invalid")}\n`);
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+async function numberedSelectMany({ title, items, defaultSelected }) {
+  const selectedDefaults = new Set(defaultSelected);
+  const rl = createPromiseInterface({ input: process.stdin, output: process.stdout });
+
+  const layout = numberedLayout(items);
+  process.stdout.write(`\n${title}\n`);
+  items.forEach((item, index) => {
+    const checked = selectedDefaults.has(item.id) ? "*" : " ";
+    process.stdout.write(`${itemLine(item, `  ${layout.label(index)}. [${checked}] `, layout.nameWidth)}\n`);
+  });
+
+  try {
+    while (true) {
+      const answer = (await rl.question(t("select.enterNumbers"))).trim();
+      const selected = parseSelection(answer, items, selectedDefaults);
+      if (selected.length > 0) {
+        return selected;
+      }
+      process.stdout.write(`${t("select.invalid")}\n`);
+    }
+  } finally {
+    rl.close();
+  }
+}
+
 async function promptSelectOneFromAnswers({ title, items, defaultSelected, answers }) {
   const defaultIndex = Math.max(0, items.findIndex((item) => item.id === defaultSelected));
+  const layout = numberedLayout(items);
 
   while (true) {
     process.stdout.write(`\n${title}\n`);
     items.forEach((item, index) => {
       const marker = index === defaultIndex ? "*" : " ";
-      process.stdout.write(`  ${index + 1}. [${marker}] ${item.name} - ${item.description}\n`);
+      process.stdout.write(`${itemLine(item, `  ${layout.label(index)}. [${marker}] `, layout.nameWidth)}\n`);
     });
-    process.stdout.write("Enter number, or press Enter for default: ");
+    process.stdout.write(t("select.enterNumber"));
     const answer = answers.length ? answers.shift() : "";
     process.stdout.write(`${answer}\n`);
     const selected = parseSingleSelection(answer, items, defaultIndex);
@@ -36,22 +263,23 @@ async function promptSelectOneFromAnswers({ title, items, defaultSelected, answe
       return selected;
     }
     if (!answers.length) {
-      throw new Error("Select one item.");
+      throw new Error(t("select.selectOne"));
     }
-    process.stdout.write("Select one item.\n");
+    process.stdout.write(`${t("select.selectOne")}\n`);
   }
 }
 
 async function promptSelectManyFromAnswers({ title, items, defaultSelected, answers }) {
   const selectedDefaults = new Set(defaultSelected);
+  const layout = numberedLayout(items);
 
   while (true) {
     process.stdout.write(`\n${title}\n`);
     items.forEach((item, index) => {
       const checked = selectedDefaults.has(item.id) ? "*" : " ";
-      process.stdout.write(`  ${index + 1}. [${checked}] ${item.name} - ${item.description}\n`);
+      process.stdout.write(`${itemLine(item, `  ${layout.label(index)}. [${checked}] `, layout.nameWidth)}\n`);
     });
-    process.stdout.write("Enter numbers separated by comma, or press Enter for defaults: ");
+    process.stdout.write(t("select.enterNumbers"));
     const answer = answers.length ? answers.shift() : "";
     process.stdout.write(`${answer}\n`);
     const selected = parseSelection(answer, items, selectedDefaults);
@@ -59,9 +287,9 @@ async function promptSelectManyFromAnswers({ title, items, defaultSelected, answ
       return selected;
     }
     if (!answers.length) {
-      throw new Error("Select at least one item.");
+      throw new Error(t("select.selectAtLeastOne"));
     }
-    process.stdout.write("Select at least one item.\n");
+    process.stdout.write(`${t("select.selectAtLeastOne")}\n`);
   }
 }
 
@@ -78,6 +306,7 @@ function checkboxSelectMany({ title, items, defaultSelected }) {
     const selected = new Set(defaultSelected);
     let cursor = 0;
     let message = "";
+    const windowRows = Math.max(3, terminalRows() - RESERVED_ROWS);
     let done = false;
 
     readline.emitKeypressEvents(process.stdin);
@@ -93,12 +322,15 @@ function checkboxSelectMany({ title, items, defaultSelected }) {
     const render = () => {
       process.stdout.write("\x1b[2J\x1b[H\x1b[?25l");
       process.stdout.write(`${title}\n`);
-      process.stdout.write("Use Up/Down, Space to toggle, A all, N none, Enter confirm.\n\n");
-      items.forEach((item, index) => {
+      const window = visibleWindow(items, cursor, windowRows);
+      const nameWidth = nameColumnWidth(items, displayWidth("> [x] "));
+      process.stdout.write(`${t("select.checkboxHelp")}${scrollHint(cursor, items.length, windowRows)}\n\n`);
+      for (let index = window.start; index < window.end; index += 1) {
+        const item = items[index];
         const pointer = index === cursor ? ">" : " ";
         const checked = selected.has(item.id) ? "x" : " ";
-        process.stdout.write(`${pointer} [${checked}] ${item.name} - ${item.description}\n`);
-      });
+        process.stdout.write(`${itemLine(item, `${pointer} [${checked}] `, nameWidth)}\n`);
+      }
       if (message) {
         process.stdout.write(`\n${message}\n`);
       }
@@ -109,7 +341,7 @@ function checkboxSelectMany({ title, items, defaultSelected }) {
         return;
       }
       if (selected.size === 0) {
-        message = "Select at least one item.";
+        message = t("select.selectAtLeastOne");
         render();
         return;
       }
@@ -124,7 +356,7 @@ function checkboxSelectMany({ title, items, defaultSelected }) {
       if (key.ctrl && key.name === "c") {
         done = true;
         cleanup();
-        reject(new Error("Cancelled."));
+        reject(new Error(t("common.cancelled")));
         return;
       }
       if (key.name === "up") {
@@ -160,6 +392,7 @@ function listSelectOne({ title, items, defaultSelected }) {
   return new Promise((resolve, reject) => {
     let cursor = Math.max(0, items.findIndex((item) => item.id === defaultSelected));
     let done = false;
+    let showDetails = false;
 
     readline.emitKeypressEvents(process.stdin);
     process.stdin.setRawMode(true);
@@ -174,11 +407,20 @@ function listSelectOne({ title, items, defaultSelected }) {
     const render = () => {
       process.stdout.write("\x1b[2J\x1b[H\x1b[?25l");
       process.stdout.write(`${title}\n`);
-      process.stdout.write("Use Up/Down, Enter confirm.\n\n");
-      items.forEach((item, index) => {
+      const panel = showDetails ? detailsPanel(items[cursor]) : [];
+      const panelRows = panel.length ? panel.length + 1 : 0;
+      const windowRows = Math.max(3, terminalRows() - RESERVED_ROWS - panelRows);
+      const window = visibleWindow(items, cursor, windowRows);
+      const nameWidth = nameColumnWidth(items, displayWidth("> "));
+      process.stdout.write(`${t("select.listHelp")} ${t("select.detailsToggle")}${scrollHint(cursor, items.length, windowRows)}\n\n`);
+      for (let index = window.start; index < window.end; index += 1) {
+        const item = items[index];
         const pointer = index === cursor ? ">" : " ";
-        process.stdout.write(`${pointer} ${item.name} - ${item.description}\n`);
-      });
+        process.stdout.write(`${itemLine(item, `${pointer} `, nameWidth)}\n`);
+      }
+      if (panel.length) {
+        process.stdout.write(`\n${panel.join("\n")}\n`);
+      }
     };
 
     const finish = () => {
@@ -191,11 +433,16 @@ function listSelectOne({ title, items, defaultSelected }) {
       resolve(items[cursor]);
     };
 
-    const onKeypress = (_char, key = {}) => {
+    const onKeypress = (char, key = {}) => {
       if (key.ctrl && key.name === "c") {
         done = true;
         cleanup();
-        reject(new Error("Cancelled."));
+        reject(new Error(t("common.cancelled")));
+        return;
+      }
+      if (char === "?" || key.name === "?") {
+        showDetails = !showDetails;
+        render();
         return;
       }
       if (key.name === "up") {

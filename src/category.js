@@ -1,6 +1,7 @@
 import readline from "node:readline";
 import { stdin, stdout } from "node:process";
 import { parseKnownOptions, parseToolArgs } from "./args.js";
+import { t } from "./i18n.js";
 import { formatToolResult, printToolSchema, writeOutput } from "./output.js";
 import { tokenizeCommandLine } from "./repl.js";
 import { createSelector } from "./select.js";
@@ -95,10 +96,10 @@ export async function runCategoryWizard(category, client, tokens, globalOptions 
     return;
   }
 
-  const allTools = await withSpinner(`Loading ${category} tools...`, () => client.listTools(), spinnerOptions(globalOptions));
+  const allTools = await withSpinner(t("category.loading", { category }), () => client.listTools(), spinnerOptions(globalOptions));
   const tools = categoryTools(category, allTools);
   if (tools.length === 0) {
-    throw new Error(`No ${category} tools were returned by the server. Check token/tools permissions.`);
+    throw new Error(t("category.noTools", { category }));
   }
 
   const selectedTool = await resolveTool(category, tools, options.tool, rest);
@@ -106,14 +107,14 @@ export async function runCategoryWizard(category, client, tokens, globalOptions 
     return;
   }
 
-  process.stdout.write(`\nSelected tool: ${selectedTool.name}\n\n`);
+  process.stdout.write(`\n${t("category.selected", { tool: selectedTool.name })}\n\n`);
   process.stdout.write(printToolSchema(selectedTool));
 
   const args = await resolveToolArguments(category, selectedTool, rest);
-  const result = await withSpinner(`Calling ${selectedTool.name}...`, () => client.callTool(selectedTool.name, args), spinnerOptions(globalOptions));
+  const result = await withSpinner(t("cli.calling", { tool: selectedTool.name }), () => client.callTool(selectedTool.name, args), spinnerOptions(globalOptions));
   if (result?.isError) {
     const text = formatToolResult(result, { raw: optionEnabled(globalOptions.raw) || optionEnabled(options.raw) });
-    const error = new Error(text.trim() || `Tool "${selectedTool.name}" returned an error`);
+    const error = new Error(text.trim() || t("cli.error.toolFailed", { tool: selectedTool.name }));
     error.exitCode = 2;
     throw error;
   }
@@ -142,13 +143,13 @@ async function resolveTool(category, tools, explicitTool, rest) {
   }
 
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    throw new Error(`Select a tool with dataify ${category} --tool TOOL_NAME in non-interactive mode.`);
+    throw new Error(t("category.nonInteractive", { category }));
   }
 
   const selector = createSelector();
   try {
     return await selector.selectOne({
-      title: `Select a ${category} tool`,
+      title: t("category.selectTool", { category }),
       items: tools.map((tool) => ({
         id: tool.name,
         name: tool.name,
@@ -195,7 +196,7 @@ async function promptForCommandLine(category, tool) {
   const defaultCommand = buildDefaultCommand(category, tool.name, properties, required);
 
   try {
-    process.stdout.write("\nEdit the command below, then press Enter to run it.\n");
+    process.stdout.write(`\n${t("category.editCommand")}\n`);
     const answer = await promptEditableLine("> ", defaultCommand);
     const commandLine = answer.trim() || defaultCommand;
     const tokens = tokenizeCommandLine(commandLine);
@@ -299,23 +300,13 @@ function dropCategoryAndTool(category, toolName, tokens) {
 function assertNoPlaceholders(args) {
   for (const [key, value] of Object.entries(args)) {
     if (typeof value === "string" && /^<required:[^>]+>$/.test(value.trim())) {
-      throw new Error(`Please replace required parameter "${key}" before running the command.`);
+      throw new Error(t("category.replaceRequired", { name: key }));
     }
   }
 }
 
 function categoryHelpText(category) {
-  return `Dataify ${category} wizard
-
-Usage:
-  dataify ${category}
-  dataify ${category} --tool TOOL_NAME
-  dataify ${category} TOOL_NAME --param value
-
-Examples:
-  dataify ${category}
-  dataify ${category} --tool ${exampleTool(category)}
-`;
+  return t("category.help", { category, example: exampleTool(category) });
 }
 
 function exampleTool(category) {

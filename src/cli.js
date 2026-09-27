@@ -2,20 +2,28 @@ import { parseCli, parseHeaders, parseKnownOptions, parseToolArgs, readStdin } f
 import { runLogin, runLogout, runWhoami } from "./auth-commands.js";
 import { runCategoryWizard } from "./category.js";
 import { McpHttpClient } from "./client.js";
-import { DEFAULT_SERVER, DEFAULT_TOOLS, configPath, readConfig, resolveRuntimeOptions, writeConfig } from "./config.js";
+import { DEFAULT_SERVER, DEFAULT_TOOLS, configPath, lastOptionValue, readConfig, resolveRuntimeOptions, writeConfig } from "./config.js";
 import { formatToolResult, printBalance, printToolSchema, printTools, writeOutput } from "./output.js";
+import { getLanguage, normalizeLanguage, resolveLanguage, setLanguage, t } from "./i18n.js";
 import { runInit } from "./init.js";
+import { runLanguageCommand } from "./language-command.js";
 import { runInteractive } from "./repl.js";
 import { runMcpInstaller } from "./mcp-install.js";
 import { runSkillInstaller } from "./skill-install.js";
 import { withSpinner } from "./spinner.js";
 import { VERSION } from "./version.js";
 
-export const NO_TOKEN_MESSAGE = "No Dataify token found. Run dataify login, or pass --token TOKEN.";
+export function noTokenMessage() {
+  return t("cli.error.noToken");
+}
+
+// 兼容旧的具名导出：固定为默认语言（英文）的文案。新代码请用 noTokenMessage()。
+export const NO_TOKEN_MESSAGE = noTokenMessage();
 
 export async function main(argv, options = {}) {
   const parsed = parseCli(argv);
   const command = parsed.command;
+  setLanguage(options.language || resolveLanguage(parsed.global));
 
   if (parsed.global.version || command === "version") {
     process.stdout.write(`${VERSION}\n`);
@@ -24,7 +32,7 @@ export async function main(argv, options = {}) {
 
   if (!command) {
     if (options.interactive !== false && process.stdin.isTTY && process.stdout.isTTY) {
-      await runInteractive((tokens) => main(tokens, { interactive: false }), { version: VERSION });
+      await runInteractive((tokens) => main(tokens, { interactive: false, language: getLanguage() }), { version: VERSION });
       return;
     }
     process.stdout.write(helpText());
@@ -32,7 +40,7 @@ export async function main(argv, options = {}) {
   }
 
   if (command === "chat" || command === "repl") {
-    await runInteractive((tokens) => main(tokens, { interactive: false }), { version: VERSION });
+    await runInteractive((tokens) => main(tokens, { interactive: false, language: getLanguage() }), { version: VERSION });
     return;
   }
 
@@ -71,6 +79,11 @@ export async function main(argv, options = {}) {
     return;
   }
 
+  if (command === "language") {
+    await runLanguageCommand(parsed.rest);
+    return;
+  }
+
   const { options: trailingGlobal, rest } = parseKnownOptions(parsed.rest);
   const globalOptions = {
     ...parsed.global,
@@ -97,19 +110,19 @@ export async function main(argv, options = {}) {
 
   try {
     if (command === "tools" || command === "list") {
-      const tools = await withSpinner("Loading tools...", () => client.listTools(), spinnerOptions(globalOptions));
+      const tools = await withSpinner(t("cli.loading.tools"), () => client.listTools(), spinnerOptions(globalOptions));
       writeOutput(printTools(tools, { raw: optionEnabled(globalOptions.raw) }), globalOptions.output);
       return;
     }
 
     if (command === "balance") {
       if (!runtime.token) {
-        throw new Error(NO_TOKEN_MESSAGE);
+        throw new Error(noTokenMessage());
       }
-      const result = await withSpinner("Loading balance...", () => client.callTool("query_user_balance", {}), spinnerOptions(globalOptions));
+      const result = await withSpinner(t("cli.loading.balance"), () => client.callTool("query_user_balance", {}), spinnerOptions(globalOptions));
       if (result?.isError) {
         const text = formatToolResult(result, { raw: optionEnabled(globalOptions.raw) });
-        const error = new Error(text.trim() || "Balance query returned an error");
+        const error = new Error(text.trim() || t("cli.error.balanceFailed"));
         error.exitCode = 2;
         throw error;
       }
@@ -125,12 +138,12 @@ export async function main(argv, options = {}) {
     if (command === "schema") {
       const toolName = rest[0];
       if (!toolName) {
-        throw new Error("Usage: dataify schema <tool>");
+        throw new Error(t("cli.error.schemaUsage"));
       }
-      const tools = await withSpinner(`Loading schema for ${toolName}...`, () => client.listTools(), spinnerOptions(globalOptions));
+      const tools = await withSpinner(t("cli.loading.schema", { tool: toolName }), () => client.listTools(), spinnerOptions(globalOptions));
       const tool = tools.find((item) => item.name === toolName);
       if (!tool) {
-        throw new Error(`Tool "${toolName}" was not returned by the server`);
+        throw new Error(t("cli.error.toolNotReturned", { tool: toolName }));
       }
       writeOutput(printToolSchema(tool), globalOptions.output);
       return;
@@ -139,7 +152,7 @@ export async function main(argv, options = {}) {
     if (command === "call") {
       const toolName = rest[0];
       if (!toolName) {
-        throw new Error("Usage: dataify call <tool> [--param value]");
+        throw new Error(t("cli.error.callUsage"));
       }
       await runToolCall(client, toolName, rest.slice(1), globalOptions);
       return;
@@ -150,7 +163,7 @@ export async function main(argv, options = {}) {
       return;
     }
 
-    throw new Error(`Unknown command "${command}"`);
+    throw new Error(t("cli.error.unknownCommand", { command }));
   } finally {
     await client.close();
   }
@@ -165,10 +178,10 @@ async function runToolCall(client, toolName, tokens, globalOptions) {
     }
   }
 
-  const result = await withSpinner(`Calling ${toolName}...`, () => client.callTool(toolName, args), spinnerOptions(globalOptions));
+  const result = await withSpinner(t("cli.calling", { tool: toolName }), () => client.callTool(toolName, args), spinnerOptions(globalOptions));
   if (result?.isError) {
     const text = formatToolResult(result, { raw: optionEnabled(globalOptions.raw) || meta.raw });
-    const error = new Error(text.trim() || `Tool "${toolName}" returned an error`);
+    const error = new Error(text.trim() || t("cli.error.toolFailed", { tool: toolName }));
     error.exitCode = 2;
     throw error;
   }
@@ -210,7 +223,7 @@ function spinnerOptions(globalOptions) {
 
 async function runConfig(tokens) {
   const subcommand = tokens[0] || "get";
-  const { options } = parseKnownOptions(tokens.slice(1), new Set(["token", "timeout", "help"]));
+  const { options } = parseKnownOptions(tokens.slice(1), new Set(["token", "timeout", "language", "help"]));
 
   if (subcommand === "path") {
     process.stdout.write(`${configPath()}\n`);
@@ -231,88 +244,23 @@ async function runConfig(tokens) {
         next[key] = Array.isArray(options[key]) ? options[key].at(-1) : options[key];
       }
     }
+    const languageValue = lastOptionValue(options.language);
+    if (languageValue !== undefined) {
+      const normalized = normalizeLanguage(languageValue);
+      if (!normalized) {
+        throw new Error(t("language.invalid", { value: languageValue }));
+      }
+      next.language = normalized;
+      setLanguage(normalized);
+    }
     const file = writeConfig(next);
-    process.stdout.write(`Saved ${file}\n`);
+    process.stdout.write(`${t("cli.config.saved", { file })}\n`);
     return;
   }
 
-  throw new Error(`Unknown config command "${subcommand}"`);
+  throw new Error(t("cli.error.unknownConfigCommand", { subcommand }));
 }
 
 function helpText() {
-  return `Dataify MCP CLI ${VERSION}
-
-Usage:
-  dataify
-  dataify chat
-  dataify init
-  dataify login [--force] [--no-browser]
-  dataify logout
-  dataify whoami [--json]
-  dataify tools [--token TOKEN]
-  dataify balance [--token TOKEN]
-  dataify serp
-  dataify scraper
-  dataify webunlock
-  dataify mcp [--token TOKEN]
-  dataify skill
-  dataify schema <tool>
-  dataify call <tool> [--param value]
-  dataify <tool> [--param value]
-  dataify config set --token TOKEN
-
-Common options:
-  --token TOKEN      Dataify API token, appended as ?token=...
-  --timeout VALUE    Request timeout, e.g. 120000, 30s, 2m
-  --raw              Print the raw MCP tool result
-  --output FILE      Write command output to a file
-  --header K=V       Add an HTTP header
-
-Interactive commands:
-  /help              Show interactive help
-  /init              Run the setup wizard
-  /login             Sign in with your browser
-  /logout            Sign out and delete the CLI API key
-  /whoami            Show the signed-in account
-  /tools             List available tools
-  /balance           Show account balance
-  /serp              Choose and call a SERP tool
-  /scraper           Choose and call a scraper tool
-  /webunlock         Choose and call a Web Unlocker tool
-  /schema <tool>     Show tool parameters
-  /call <tool> ...   Call a tool
-  /mcp               Install MCP configs for agents
-  /skill             Install Dataify skills
-  /retry             Run the previous command again
-  /exit              Quit interactive mode
-
-Argument forms:
-  --q pizza
-  --arg q=pizza
-  --arg-json page=1
-  --args-json '{"q":"pizza","json":"1"}'
-  --args-file params.json
-  --stdin            Read a JSON object from stdin and merge it into arguments
-
-Environment:
-  DATAIFY_API_TOKEN, DATAIFY_MCP_TIMEOUT
-
-Fixed MCP URL:
-  ${DEFAULT_SERVER}?token=<your_api_token>&tools=${DEFAULT_TOOLS}
-
-Examples:
-  dataify
-  dataify init
-  dataify login
-  dataify whoami
-  dataify balance
-  dataify serp
-  dataify scraper
-  dataify webunlock
-  dataify mcp
-  dataify skill
-  dataify google_search --q "pizza" --json 1
-  dataify request_web_unlocker --url https://example.com --type html
-  dataify call query_common_collection_api_task_status --status -1 --page 1 --pageSize 10
-`;
+  return t("cli.help", { version: VERSION, server: DEFAULT_SERVER, tools: DEFAULT_TOOLS });
 }

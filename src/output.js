@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { displayWidth, truncateToWidth, wrapToWidth } from "./display-width.js";
+import { t } from "./i18n.js";
 
 const DEFAULT_TABLE_WIDTH = 100;
 const MIN_DESCRIPTION_WIDTH = 24;
@@ -45,7 +47,7 @@ export function printTools(tools, options = {}) {
   }
 
   if (!tools.length) {
-    return "No tools returned. Check token/tools permissions.\n";
+    return `${t("output.noTools")}\n`;
   }
 
   const rows = tools.map((tool, index) => ({
@@ -56,8 +58,8 @@ export function printTools(tools, options = {}) {
 
   return renderTable(rows, [
     { key: "#", title: "#", align: "right" },
-    { key: "Tool", title: "Tool", maxWidth: 32 },
-    { key: "Description", title: "Description", flex: true, minWidth: 24 }
+    { key: "Tool", title: t("output.col.tool"), maxWidth: 32 },
+    { key: "Description", title: t("output.col.description"), flex: true, minWidth: 24 }
   ]);
 }
 
@@ -68,24 +70,24 @@ export function printToolSchema(tool) {
   const names = Object.keys(properties);
 
   if (names.length === 0) {
-    return `No parameters found for ${tool?.name || "this tool"}.\n`;
+    return `${t("output.noParameters", { tool: tool?.name || "this tool" })}\n`;
   }
 
   const rows = names.map((name) => {
     const property = properties[name] || {};
     return {
       Parameter: name,
-      Required: required.has(name) ? "yes" : "no",
+      Required: required.has(name) ? t("common.yes") : t("common.no"),
       Type: schemaType(property),
       Description: singleLine(property.description || "")
     };
   });
 
   return renderTable(rows, [
-    { key: "Parameter", title: "Parameter", maxWidth: 28 },
-    { key: "Required", title: "Required" },
-    { key: "Type", title: "Type", maxWidth: 18 },
-    { key: "Description", title: "Description", flex: true, minWidth: 24 }
+    { key: "Parameter", title: t("output.col.parameter"), maxWidth: 28 },
+    { key: "Required", title: t("output.col.required") },
+    { key: "Type", title: t("output.col.type"), maxWidth: 18 },
+    { key: "Description", title: t("output.col.description"), flex: true, minWidth: 24 }
   ]);
 }
 
@@ -102,19 +104,19 @@ export function printBalance(result, options = {}) {
 
   const rows = [
     {
-      Item: "Balance",
+      Item: t("output.balance.item"),
       Value: formatAmount(data.balance),
-      Description: "Remaining Dataify credits or balance"
+      Description: t("output.balance.itemDescription")
     },
     {
-      Item: "Total Recharge",
+      Item: t("output.balance.totalRecharge"),
       Value: formatAmount(data.totalRecharge ?? data.total_recharge),
-      Description: "Total recharged credits"
+      Description: t("output.balance.totalRechargeDescription")
     },
     {
-      Item: "Total Used",
+      Item: t("output.balance.totalUsed"),
       Value: formatAmount(data.totalUse ?? data.total_use),
-      Description: "Total consumed credits"
+      Description: t("output.balance.totalUsedDescription")
     }
   ].filter((row) => row.Value !== "");
 
@@ -122,11 +124,11 @@ export function printBalance(result, options = {}) {
     return formatToolResult(result, options);
   }
 
-  const message = payload?.message ? `Status: ${payload.message}\n\n` : "";
+  const message = payload?.message ? `${t("output.balance.status")}: ${payload.message}\n\n` : "";
   return `${message}${renderTable(rows, [
-    { key: "Item", title: "Item", maxWidth: 20 },
-    { key: "Value", title: "Value", maxWidth: 24, align: "right" },
-    { key: "Description", title: "Description", flex: true, minWidth: 24 }
+    { key: "Item", title: t("output.col.item"), maxWidth: 20 },
+    { key: "Value", title: t("output.col.value"), maxWidth: 24, align: "right" },
+    { key: "Description", title: t("output.col.description"), flex: true, minWidth: 24 }
   ])}`;
 }
 
@@ -211,7 +213,7 @@ function renderTable(rows, columns) {
   ];
 
   for (const row of rows) {
-    const wrappedColumns = prepared.map((column) => wrapCell(row[column.key] || "", column.width));
+    const wrappedColumns = prepared.map((column) => wrapToWidth(row[column.key] || "", column.width));
     const height = Math.max(...wrappedColumns.map((lines) => lines.length));
     for (let lineIndex = 0; lineIndex < height; lineIndex += 1) {
       output.push(tableRow(wrappedColumns.map((lines) => lines[lineIndex] || ""), prepared));
@@ -276,88 +278,12 @@ function tableRow(values, columns) {
   return `|${cells.join("|")}|`;
 }
 
-function wrapCell(value, width) {
-  const text = String(value);
-  if (!text) {
-    return [""];
-  }
-
-  const words = text.split(/\s+/);
-  const lines = [];
-  let current = "";
-
-  for (const word of words) {
-    if (!word) {
-      continue;
-    }
-    if (displayWidth(word) > width) {
-      if (current) {
-        lines.push(current);
-        current = "";
-      }
-      lines.push(...chunkByWidth(word, width));
-      continue;
-    }
-
-    const next = current ? `${current} ${word}` : word;
-    if (displayWidth(next) <= width) {
-      current = next;
-    } else {
-      lines.push(current);
-      current = word;
-    }
-  }
-
-  if (current) {
-    lines.push(current);
-  }
-  return lines.length ? lines : [""];
-}
-
-function chunkByWidth(text, width) {
-  const chunks = [];
-  let current = "";
-  for (const char of Array.from(text)) {
-    if (displayWidth(current + char) > width) {
-      if (current) {
-        chunks.push(current);
-      }
-      current = char;
-    } else {
-      current += char;
-    }
-  }
-  if (current) {
-    chunks.push(current);
-  }
-  return chunks;
-}
-
-function truncateToWidth(text, width) {
-  let result = "";
-  for (const char of Array.from(text)) {
-    if (displayWidth(result + char) > width) {
-      break;
-    }
-    result += char;
-  }
-  return result;
-}
-
 function padEndWidth(text, width) {
   return `${text}${" ".repeat(Math.max(0, width - displayWidth(text)))}`;
 }
 
 function padStartWidth(text, width) {
   return `${" ".repeat(Math.max(0, width - displayWidth(text)))}${text}`;
-}
-
-function displayWidth(value) {
-  return Array.from(String(value)).reduce((width, char) => width + (isWideChar(char) ? 2 : 1), 0);
-}
-
-function isWideChar(char) {
-  return /[\u1100-\u115f\u2329\u232a\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe10-\ufe19\ufe30-\ufe6f\uff00-\uff60\uffe0-\uffe6]/u.test(char);
 }
 
 function tryParseJson(text) {

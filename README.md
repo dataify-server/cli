@@ -235,6 +235,7 @@ Interactive commands can use a leading slash:
 /call google_search --q "pizza" --arg-json json=1
 /mcp
 /skill
+/language zh
 /retry
 /clear
 /exit
@@ -268,6 +269,17 @@ If you use `npx` often, configure the token globally with `dataify config set --
 ## Category Wizards
 
 The `serp`, `scraper`, and `webunlock` commands first list the tools in that category, then print the selected tool schema, then open one editable command line with defaults filled in.
+
+Each tool takes exactly one line, and tool names share one aligned column so every `-` lines up:
+
+```text
+> amazon_product         - 当用户需要 Amazon 产品详情、商品详情、商品信息…
+  amazon_global_product  - 当用户需要 Amazon 全球产品详情、Amazon 全球商品…
+```
+
+Descriptions are clipped to the terminal width, so they never wrap into a wall of text. To read one in full, press `?` while it is highlighted (press `?` again to hide it) — the full description is shown in a box below the list. The name column is as wide as the longest tool name in that list; it is only narrowed (clipping the longest names) when the terminal is too narrow to leave room for descriptions.
+
+On terminals without full-screen list support the wizard asks for a number instead. There, type `?N` to read item N in full, or `?` on its own to expand every item; both return to the same prompt afterwards.
 
 Example:
 
@@ -332,6 +344,35 @@ set GITHUB_TOKEN=YOUR_GITHUB_TOKEN
 ```bash
 export GITHUB_TOKEN="YOUR_GITHUB_TOKEN"
 ```
+
+## Display Language
+
+The CLI interface can be shown in English (default) or Chinese:
+
+```bash
+dataify language zh
+dataify language en
+```
+
+Inside interactive mode:
+
+```text
+/language zh
+/language en
+/language
+```
+
+In interactive mode, `/language` without an argument opens a picker with `English` and `中文`, with
+the current language preselected; pick one and the CLI switches immediately. The one-shot command
+`dataify language` without an argument keeps printing the current language and usage instead, so
+scripts never block on a prompt.
+
+The choice is saved to the config file, and the `DATAIFY_LANGUAGE` environment variable overrides
+it. `--language zh` changes the language for a single command.
+
+The language switch covers the CLI's own text: help output, table headers, wizard prompts, and
+status messages. Tool and parameter descriptions come from the MCP server and are shown as
+returned by the server.
 
 ## List Tools
 

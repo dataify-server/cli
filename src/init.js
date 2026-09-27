@@ -1,6 +1,7 @@
 import { parseKnownOptions } from "./args.js";
 import { runLogin } from "./auth-commands.js";
 import { logoText } from "./brand.js";
+import { t } from "./i18n.js";
 import { DEFAULT_SERVER, DEFAULT_TOOLS, readConfig, writeConfig } from "./config.js";
 import { ensureMcpToken, runMcpInstaller } from "./mcp-install.js";
 import { promptConfirm } from "./prompt.js";
@@ -30,10 +31,10 @@ export async function runInit(tokens = []) {
   const skipLogin = optionEnabled(options.skip_login);
   const token = lastOption(options.token);
 
-  process.stdout.write(`${logoText()}\nDataify init\n\n`);
+  process.stdout.write(`${logoText()}\n${t("init.title")}\n\n`);
   const resolvedToken = await configureToken(token, { yes, skipLogin });
 
-  if (!skipMcp && await shouldRunStep("Install Dataify MCP into agent tools", yes)) {
+  if (!skipMcp && await shouldRunStep(t("init.step.mcp"), yes)) {
     await runMcpInstaller({
       token: resolvedToken,
       agents: yes ? "all" : undefined,
@@ -41,7 +42,7 @@ export async function runInit(tokens = []) {
     });
   }
 
-  if (!skipSkill && await shouldRunStep("Install Dataify skills from GitHub", yes)) {
+  if (!skipSkill && await shouldRunStep(t("init.step.skill"), yes)) {
     const skillTokens = yes ? ["--agent", "all", "--all"] : [];
     const githubToken = lastOption(options.github_token);
     if (githubToken) {
@@ -50,8 +51,8 @@ export async function runInit(tokens = []) {
     await runSkillInstaller(skillTokens);
   }
 
-  process.stdout.write("\nDataify init finished.\n\n");
-  process.stdout.write("Next commands:\n");
+  process.stdout.write(`\n${t("init.finished")}\n\n`);
+  process.stdout.write(`${t("init.nextCommands")}\n`);
   process.stdout.write("  dataify whoami\n");
   process.stdout.write("  dataify balance\n");
   process.stdout.write("  dataify tools\n");
@@ -67,25 +68,25 @@ async function configureToken(token, { yes = false, skipLogin = false } = {}) {
 
   if (token) {
     const file = writeConfig({ ...config, token });
-    process.stdout.write(`Saved token to ${file}\n`);
+    process.stdout.write(`${t("init.savedToken", { file })}\n`);
     return token;
   }
 
   if (existingToken) {
-    process.stdout.write(`Using existing Dataify token from ${existingToken === config.token ? "config" : "environment"}.\n`);
+    process.stdout.write(`${t("init.usingToken", { source: existingToken === config.token ? t("init.source.config") : t("init.source.environment") })}\n`);
     return existingToken;
   }
 
   const canPrompt = process.stdin.isTTY && process.stdout.isTTY;
   if (!skipLogin && canPrompt) {
-    const useBrowserLogin = yes || (await promptConfirm("Sign in to Dataify with your browser now", true));
+    const useBrowserLogin = yes || (await promptConfirm(t("init.confirmLogin"), true));
     if (useBrowserLogin) {
       await runLogin([]);
       const loggedInToken = readConfig().token || "";
       if (loggedInToken) {
         return loggedInToken;
       }
-      process.stdout.write("Browser login did not produce a token; falling back to manual entry.\n");
+      process.stdout.write(`${t("init.browserFallback")}\n`);
     }
   }
 
@@ -124,29 +125,5 @@ function lastOption(value) {
 }
 
 function initHelpText() {
-  return `Dataify init wizard
-
-Usage:
-  dataify init
-  dataify init --token TOKEN
-  dataify init --yes
-  dataify init --skip-login
-  dataify init --skip-mcp
-  dataify init --skip-skill
-
-Options:
-  --token TOKEN      Save a Dataify token before running setup.
-  --yes, -y          Run setup steps without confirmation prompts.
-  --skip-login       Never start a browser login; paste a token manually.
-  --skip-mcp         Skip installing MCP into agent tools.
-  --skip-skill       Skip installing Dataify skills.
-  --github-token TOK GitHub token passed to dataify skill.
-
-Next commands:
-  dataify login      Sign in with your browser at any time.
-  dataify whoami     Show the signed-in account.
-
-Fixed MCP URL:
-  ${DEFAULT_SERVER}?token=<your_api_token>&tools=${DEFAULT_TOOLS}
-`;
+  return t("init.help", { server: DEFAULT_SERVER, tools: DEFAULT_TOOLS });
 }

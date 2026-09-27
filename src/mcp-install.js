@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { DEFAULT_SERVER, readConfig, writeConfig } from "./config.js";
+import { t } from "./i18n.js";
 import { promptHidden } from "./prompt.js";
 import { createSelector } from "./select.js";
 import { withSpinner } from "./spinner.js";
@@ -11,74 +12,67 @@ import { withSpinner } from "./spinner.js";
 const SERVER_NAME = "dataify";
 
 const AGENTS = [
-  {
-    id: "claude-code",
-    name: "Claude Code",
-    description: "Install with claude mcp add, user scope."
-  },
-  {
-    id: "cursor",
-    name: "Cursor",
-    description: "Write global ~/.cursor/mcp.json."
-  },
-  {
-    id: "codex",
-    name: "Codex",
-    description: "Write global ~/.codex/config.toml."
-  },
-  {
-    id: "vscode",
-    name: "VS Code",
-    description: "Write project .vscode/mcp.json for Copilot Agent mode."
-  }
+  { id: "claude-code", name: "Claude Code" },
+  { id: "cursor", name: "Cursor" },
+  { id: "codex", name: "Codex" },
+  { id: "vscode", name: "VS Code" }
 ];
 
 const MCP_CLASSES = [
-  ["user_info", "Account, balance, API key, usage statistics, and task status queries."],
-  ["web_unlocker", "Fetch protected or JavaScript-rendered web pages as HTML or PNG."],
-  ["google_serp", "Google Search, Images, News, Shopping, Maps, Trends, Scholar, Patents, and related SERP data."],
-  ["yandex_serp", "Yandex public web search results."],
-  ["duckduckgo_serp", "DuckDuckGo public web search results."],
-  ["bing_serp", "Bing Search, Images, News, Videos, Maps, and Shopping results."],
-  ["amazon", "Amazon product, list, review, and seller data collection."],
-  ["youtube", "YouTube video, channel, comment, transcript, audio, and video download tools."],
-  ["facebook", "Facebook post, comment, profile, and event data collection."],
-  ["instagram", "Instagram profile, reel, and comment data collection."],
-  ["reddit", "Reddit post and comment data collection."],
-  ["walmart", "Walmart product, SKU, category, and keyword product data."],
-  ["google", "Google Maps details/reviews, Google Play, Google Shopping, and Google local data tools."],
-  ["booking", "Booking hotel listing and hotel detail data."],
-  ["indeed", "Indeed company and job listing data."],
-  ["airbnb", "Airbnb home and property search data."],
-  ["google_play_store", "Google Play store app information and reviews."],
-  ["github", "GitHub repository, search, and code URL data."],
-  ["tiktok", "TikTok profile, post, comment, and shop data."],
-  ["linkedin", "LinkedIn company and job listing data."],
-  ["glassdoor", "Glassdoor company overview and job listing data."],
-  ["twitter", "Twitter/X profile and post data."],
-  ["crunchbase", "Crunchbase company URL and keyword search data."],
-  ["zillow", "Zillow property search and listing data."],
-  ["ebay", "eBay product, category, seller, and listing data."]
-].map(([id, description]) => ({ id, name: id, description }));
+  "user_info",
+  "web_unlocker",
+  "google_serp",
+  "yandex_serp",
+  "duckduckgo_serp",
+  "bing_serp",
+  "amazon",
+  "youtube",
+  "facebook",
+  "instagram",
+  "reddit",
+  "walmart",
+  "google",
+  "booking",
+  "indeed",
+  "airbnb",
+  "google_play_store",
+  "github",
+  "tiktok",
+  "linkedin",
+  "glassdoor",
+  "twitter",
+  "crunchbase",
+  "zillow",
+  "ebay",
+].map((id) => ({ id, name: id }));
+
+function localizeItems(items, prefix) {
+  return items.map((item) => ({
+    ...item,
+    description: t(`${prefix}.${item.id}`)
+  }));
+}
 
 export async function runMcpInstaller(options = {}) {
   const token = await ensureMcpToken(options.token);
 
   let agents;
+  const agentItems = localizeItems(AGENTS, "mcp.agent");
+  const toolClassItems = localizeItems(MCP_CLASSES, "mcp.class");
   const requestedAgents = splitOptionList(options.agent ?? options.agents);
   const requestedToolClasses = splitOptionList(options.toolClass ?? options.toolClasses ?? options.selectedTools);
   const canPrompt = process.stdin.isTTY && process.stdout.isTTY;
   let selectedTools;
   if (requestedAgents.length > 0) {
-    agents = selectByIds(AGENTS, requestedAgents, "agent");
+    agents = selectByIds(agentItems, requestedAgents, t("mcp.label.agent"));
   } else if (!canPrompt) {
-    agents = AGENTS;
+    agents = agentItems;
   } else {
     const selector = createSelector();
     try {
       agents = await selector.selectMany({
-        title: "Select agent tools to install Dataify MCP",
-        items: AGENTS,
+        title: t("mcp.selectAgents"),
+        items: agentItems,
         defaultSelected: []
       });
     } finally {
@@ -87,15 +81,15 @@ export async function runMcpInstaller(options = {}) {
   }
 
   if (requestedToolClasses.length > 0) {
-    selectedTools = selectByIds(MCP_CLASSES, requestedToolClasses, "tool class");
+    selectedTools = selectByIds(toolClassItems, requestedToolClasses, t("mcp.label.toolClass"));
   } else if (!canPrompt) {
-    selectedTools = MCP_CLASSES;
+    selectedTools = toolClassItems;
   } else {
     const selector = createSelector();
     try {
       selectedTools = await selector.selectMany({
-        title: "Select Dataify tool classes to enable",
-        items: MCP_CLASSES,
+        title: t("mcp.selectToolClasses"),
+        items: toolClassItems,
         defaultSelected: MCP_CLASSES.map((item) => item.id)
       });
     } finally {
@@ -111,20 +105,20 @@ export async function runMcpInstaller(options = {}) {
   });
 
   const results = [];
-  process.stdout.write("\nInstalling selected MCP configurations...\n");
+  process.stdout.write(`\n${t("mcp.installing")}\n`);
   for (const agent of agents) {
     const result = await installAgentWithProgress(agent, mcpUrl);
     results.push(result);
     process.stdout.write(`${formatInstallStatus(result)}\n`);
   }
 
-  process.stdout.write("\nDataify MCP installation finished.\n");
-  process.stdout.write(`\nEnabled tool classes: ${selectedToolIds.join(", ")}\n`);
+  process.stdout.write(`\n${t("mcp.finished")}\n`);
+  process.stdout.write(`\n${t("mcp.enabledClasses", { classes: selectedToolIds.join(", ") })}\n`);
   if (results.some((result) => !result.ok)) {
     process.exitCode = process.exitCode || 1;
-    process.stdout.write("Some agent tools were not configured. Fix the failed item and run dataify mcp again.\n");
+    process.stdout.write(`${t("mcp.someFailed")}\n`);
   }
-  process.stdout.write("Restart selected agent tools if they are already running.\n");
+  process.stdout.write(`${t("mcp.restartHint")}\n`);
 }
 
 export async function ensureMcpToken(token) {
@@ -133,20 +127,20 @@ export async function ensureMcpToken(token) {
   }
 
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    throw new Error("No Dataify token found. Run dataify login, or pass --token TOKEN.");
+    throw new Error(t("cli.error.noToken"));
   }
 
-  process.stdout.write("No Dataify token found.\n");
-  process.stdout.write("Run dataify login to sign in with your browser, or paste an API token below.\n");
-  process.stdout.write("The token will be saved for future dataify commands.\n");
-  const input = await promptHidden("Dataify API token: ");
+  process.stdout.write(`${t("mcp.noTokenFound")}\n`);
+  process.stdout.write(`${t("mcp.tokenHint")}\n`);
+  process.stdout.write(`${t("mcp.tokenSaveHint")}\n`);
+  const input = await promptHidden(t("mcp.tokenPrompt"));
   const nextToken = input.trim();
   if (!nextToken) {
-    throw new Error("No token entered. Run dataify login, or pass --token TOKEN.");
+    throw new Error(t("mcp.noTokenEntered"));
   }
 
   const file = writeConfig({ ...readConfig(), token: nextToken });
-  process.stdout.write(`Saved token to ${file}\n`);
+  process.stdout.write(`${t("init.savedToken", { file })}\n`);
   return nextToken;
 }
 
@@ -172,10 +166,10 @@ function selectByIds(items, ids, label) {
   const selectedIds = new Set(selected.map((item) => item.id.toLowerCase()));
   const missing = ids.filter((id) => !selectedIds.has(id.toLowerCase()));
   if (missing.length > 0) {
-    throw new Error(`Unknown ${label}: ${missing.join(", ")}`);
+    throw new Error(t("common.unknownItem", { label, items: missing.join(", ") }));
   }
   if (selected.length === 0) {
-    throw new Error(`Select at least one ${label}.`);
+    throw new Error(t("common.selectAtLeastOne", { label }));
   }
   return selected;
 }
@@ -194,7 +188,7 @@ async function installAgent(agentId, mcpUrl) {
       return {
         ok: false,
         name: agentId,
-        message: "Unknown agent."
+        message: t("mcp.status.unknownAgent")
       };
   }
 }
@@ -220,20 +214,20 @@ async function installAgentWithProgress(agent, mcpUrl) {
 function installMessage(agent) {
   switch (agent.id) {
     case "claude-code":
-      return "Installing Claude Code MCP...";
+      return t("mcp.install.claude");
     case "cursor":
-      return "Updating Cursor MCP config...";
+      return t("mcp.install.cursor");
     case "codex":
-      return "Updating Codex MCP config...";
+      return t("mcp.install.codex");
     case "vscode":
-      return "Updating VS Code MCP config...";
+      return t("mcp.install.vscode");
     default:
-      return `Installing ${agent.name} MCP...`;
+      return t("mcp.install.generic", { name: agent.name });
   }
 }
 
 function formatInstallStatus(result) {
-  const status = result.ok ? "OK" : "FAILED";
+  const status = result.ok ? t("mcp.status.ok") : t("mcp.status.failed");
   return `${status} ${result.name} (${formatDuration(result.durationMs)}): ${result.message}`;
 }
 
@@ -257,7 +251,7 @@ async function installClaudeCode(mcpUrl) {
     return {
       ok: false,
       name: "Claude Code",
-      message: "claude command was not found from Node.js. Check that Claude Code is installed and available in PATH."
+      message: t("mcp.status.claudeNotFound")
     };
   }
 
@@ -265,14 +259,14 @@ async function installClaudeCode(mcpUrl) {
     return {
       ok: false,
       name: "Claude Code",
-      message: singleLine(result.stderr || result.stdout || "claude mcp add failed.")
+      message: singleLine(result.stderr || result.stdout || t("mcp.status.claudeFailed"))
     };
   }
 
   return {
     ok: true,
     name: "Claude Code",
-    message: "Installed with claude mcp add --scope user."
+    message: t("mcp.status.claudeInstalled")
   };
 }
 
@@ -377,7 +371,7 @@ async function installCursor(mcpUrl) {
   return {
     ok: true,
     name: "Cursor",
-    message: `Updated ${file}`
+    message: t("mcp.status.updated", { file })
   };
 }
 
@@ -394,7 +388,7 @@ async function installCodex(mcpUrl) {
   return {
     ok: true,
     name: "Codex",
-    message: `Updated ${file}`
+    message: t("mcp.status.updated", { file })
   };
 }
 
@@ -411,7 +405,7 @@ async function installVsCode(mcpUrl) {
   return {
     ok: true,
     name: "VS Code",
-    message: `Updated ${file}`
+    message: t("mcp.status.updated", { file })
   };
 }
 

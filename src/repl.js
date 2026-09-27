@@ -1,6 +1,8 @@
 import readline from "node:readline/promises";
 import { stdin, stdout, stderr } from "node:process";
 import { logoText } from "./brand.js";
+import { t } from "./i18n.js";
+import { runLanguageCommand } from "./language-command.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit"]);
 
@@ -41,9 +43,18 @@ export async function runInteractive(execute, options = {}) {
       continue;
     }
 
+    if (normalizedCommand === "language" || normalizedCommand === "lang") {
+      try {
+        await runLanguageCommand(trimmed.replace(/^\//, "").trim().split(/\s+/).slice(1), { select: true });
+      } catch (error) {
+        stderr.write(`${error.message}\n`);
+      }
+      continue;
+    }
+
     if (normalizedCommand === "retry") {
       if (!lastTokens) {
-        stdout.write("No previous command to retry.\n");
+        stdout.write(`${t("repl.noPrevious")}\n`);
         continue;
       }
       await runTokens(execute, lastTokens);
@@ -173,7 +184,7 @@ async function runTokens(execute, tokens) {
 function introText(version) {
   const versionText = version ? ` ${version}` : "";
   return `${logoText()}
-Dataify MCP CLI${versionText} interactive mode
+${t("repl.subtitle", { version: versionText })}
 ${quickStartText()}
 
 `;
@@ -186,28 +197,7 @@ function interactiveHelpText() {
 }
 
 function quickStartText() {
-  return `Common commands:
-  /init                              Run the setup wizard
-  /login                             Sign in with your browser
-  /logout                            Sign out and delete the CLI API key
-  /whoami                            Show the signed-in account
-  /tools                              List available tools
-  /balance                           Show account balance
-  /serp                              Choose and call a SERP tool
-  /scraper                           Choose and call a scraper tool
-  /webunlock                         Choose and call a Web Unlocker tool
-  /schema <tool>                     Show tool parameters
-  /call <tool> --param value         Call a tool
-  /mcp                               Install MCP configs for agents
-  /skill                             Install Dataify skills
-  google_search --q "pizza"          Call a tool directly
-  /retry                             Run the previous command again
-  /clear                             Clear the screen
-  /exit                              Quit interactive mode
-
-Tips:
-  Commands also work without "/", for example: tools
-  Type /help to show this guide again.`;
+  return t("repl.quickStart");
 }
 
 function completer(line) {
@@ -226,6 +216,7 @@ function completer(line) {
     "/call",
     "/mcp",
     "/skill",
+    "/language",
     "/retry",
     "/clear",
     "/exit",
@@ -242,6 +233,7 @@ function completer(line) {
     "call",
     "mcp",
     "skill",
+    "language",
     "config"
   ];
   const hits = commands.filter((command) => command.startsWith(line));

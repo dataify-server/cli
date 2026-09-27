@@ -167,7 +167,7 @@ dataify
 /_____/\__,_/\__/\__,_/_/_/  \__, /  
                              /____/   
 
-Dataify MCP CLI 0.3.0 interactive mode
+Dataify MCP CLI 0.3.1 interactive mode
 Common commands:
   /init                              Run the setup wizard
   /login                             Sign in with your browser
@@ -210,6 +210,7 @@ dataify>
 /call google_search --q "pizza" --arg-json json=1
 /mcp
 /skill
+/language zh
 /retry
 /exit
 ```
@@ -236,6 +237,17 @@ dataify repl
 ```
 
 交互模式是轻量 CLI 模式，不接入 AI，不会自动理解自然语言。它只是让用户可以连续执行 Dataify MCP 工具命令。
+
+`serp` / `scraper` / `webunlock` 的工具列表里，每个工具固定占一行，且工具名占一列、左对齐补空格，让每行的 `-` 纵向对齐：
+
+```text
+> amazon_product         - 当用户需要 Amazon 产品详情、商品详情、商品信息…
+  amazon_global_product  - 当用户需要 Amazon 全球产品详情、Amazon 全球商品…
+```
+
+描述会按终端宽度截断，不会换行堆成一大片。想看完整描述，把光标移到该工具后按 `?`，列表下方会弹出一个带边框的完整描述框，再按一次 `?` 收起。名字列宽度取该列表里最长的工具名；只有当终端窄到不足以给描述留出空间时，才会收窄名字列并截断偏长的名字。
+
+在不支持全屏列表的终端（例如原生 cmd.exe）里，向导改为让你输入序号：此时输入 `?N` 查看第 N 项的完整描述，输入 `?` 展开全部，看完会回到同一个输入提示。
 
 ## 使用 npx 运行
 
@@ -276,6 +288,32 @@ export DATAIFY_API_TOKEN="YOUR_TOKEN"
 ```
 
 环境变量优先级高于本地配置文件。
+
+## 界面语言
+
+CLI 界面支持英文（默认）和中文两种语言：
+
+```bash
+dataify language zh
+dataify language en
+```
+
+交互模式中可以直接输入：
+
+```text
+/language zh
+/language en
+/language
+```
+
+交互模式下不带参数的 `/language` 会弹出选择列表（English / 中文），当前语言为默认项，选中后立即生效；
+一次性命令 `dataify language` 不带参数时仍然只打印当前语言和用法，避免脚本被卡住。
+
+语言选择会写入配置文件；环境变量 `DATAIFY_LANGUAGE` 的优先级高于配置文件；`--language zh` 只对当前
+这条命令生效。
+
+语言切换覆盖的是 CLI 自身的文案，包括帮助信息、表格表头、向导提示和状态信息。工具与参数
+的 description 由 MCP 服务端返回，展示内容以服务端返回为准。
 
 ## 查询可用工具
 
