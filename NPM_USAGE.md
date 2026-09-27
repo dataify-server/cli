@@ -167,7 +167,7 @@ dataify
 /_____/\__,_/\__/\__,_/_/_/  \__, /  
                              /____/   
 
-Dataify MCP CLI 0.3.1 interactive mode
+Dataify MCP CLI 0.3.2 interactive mode
 Common commands:
   /init                              Run the setup wizard
   /login                             Sign in with your browser
@@ -247,7 +247,7 @@ dataify repl
 
 描述会按终端宽度截断，不会换行堆成一大片。想看完整描述，把光标移到该工具后按 `?`，列表下方会弹出一个带边框的完整描述框，再按一次 `?` 收起。名字列宽度取该列表里最长的工具名；只有当终端窄到不足以给描述留出空间时，才会收窄名字列并截断偏长的名字。
 
-在不支持全屏列表的终端（例如原生 cmd.exe）里，向导改为让你输入序号：此时输入 `?N` 查看第 N 项的完整描述，输入 `?` 展开全部，看完会回到同一个输入提示。
+Windows 10 及以上的 PowerShell / cmd 也会走同一套全屏列表，`?` 面板在里面同样可用。如果某个终端不支持全屏重绘（或者你更想要朴素的输出），设置 `DATAIFY_TUI=0`，向导会退回编号列表：此时输入 `?N` 查看第 N 项的完整描述，输入 `?` 展开全部，看完会回到同一个输入提示。
 
 ## 使用 npx 运行
 
@@ -472,6 +472,17 @@ dataify google_search --q "pizza" --json 1 --raw
 ```bash
 dataify google_search --q "pizza" --arg-json json=1 --output result.json
 ```
+
+## 终端尺寸覆盖
+
+向导默认按终端宽度排版，并留 1 列余量，避免长行被挤到屏幕外。需要手动指定时：
+
+```powershell
+$env:DATAIFY_WIDTH="100"
+$env:DATAIFY_TUI="0"
+```
+
+`DATAIFY_WIDTH` 强制指定列数；`DATAIFY_TUI=0` 强制使用朴素的编号列表而不是全屏列表。
 
 ## 设置超时时间
 

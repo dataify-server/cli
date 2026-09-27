@@ -279,7 +279,7 @@ Each tool takes exactly one line, and tool names share one aligned column so eve
 
 Descriptions are clipped to the terminal width, so they never wrap into a wall of text. To read one in full, press `?` while it is highlighted (press `?` again to hide it) — the full description is shown in a box below the list. The name column is as wide as the longest tool name in that list; it is only narrowed (clipping the longest names) when the terminal is too narrow to leave room for descriptions.
 
-On terminals without full-screen list support the wizard asks for a number instead. There, type `?N` to read item N in full, or `?` on its own to expand every item; both return to the same prompt afterwards.
+Windows 10 and later use the same full-screen list in PowerShell and cmd, so the `?` panel works there too. If a terminal cannot handle full-screen redraws (or you just prefer plain output), set `DATAIFY_TUI=0` and the wizard falls back to a numbered list instead: there, type `?N` to read item N in full, or `?` on its own to expand every item; both return to the same prompt afterwards.
 
 Example:
 
@@ -310,6 +310,20 @@ macOS/Linux shells:
 ```bash
 export DATAIFY_API_TOKEN="YOUR_TOKEN"
 ```
+
+Terminal size overrides (the wizard leaves one column of slack so long lines never wrap):
+
+```powershell
+$env:DATAIFY_WIDTH="100"
+$env:DATAIFY_TUI="0"
+```
+
+```bash
+export DATAIFY_WIDTH="100"
+export DATAIFY_TUI="0"
+```
+
+`DATAIFY_WIDTH` forces the column count, and `DATAIFY_TUI=0` forces the plain numbered list instead of the full-screen one.
 
 Optional request timeout:
 

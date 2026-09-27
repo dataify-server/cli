@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import readline from "node:readline";
 import { t } from "./i18n.js";
 import { createInterface as createPromiseInterface } from "node:readline/promises";
@@ -40,7 +41,16 @@ const SEPARATOR_WIDTH = 3;
 const RESERVED_ROWS = 5;
 
 function terminalColumns() {
-  return Math.max(20, Number(process.stdout.columns) || FALLBACK_COLUMNS);
+  // 允许用 DATAIFY_WIDTH 强制指定列数（某些 Windows 控制台报的宽度不准）。
+  const override = Math.floor(Number(process.env.DATAIFY_WIDTH));
+  if (Number.isFinite(override) && override > 0) {
+    return Math.max(20, override);
+  }
+  const reported = Math.floor(Number(process.stdout.columns));
+  const width = Number.isFinite(reported) && reported > 0 ? reported : FALLBACK_COLUMNS;
+  // 留 1 列余量：Windows 控制台里把最后一列写满会触发自动换行（pending wrap），
+  // 且它报的宽度可能略大于可见窗口，结果就是末尾的 "…" 被挤到屏幕外，看着像被硬切。
+  return Math.max(20, width - 1);
 }
 
 function terminalRows() {
@@ -171,18 +181,43 @@ function numberedLayout(items) {
   };
 }
 
+/**
+ * 能否使用全屏列表选择器（清屏、光标移动、? 展开描述那一套）。
+ *
+ * 早先这里只在 TERM / WT_SESSION 等变量存在时才认 ANSI，导致传统 conhost 里的
+ * PowerShell / cmd 被降级成“打印一长串编号”的列表。实际上 Windows 10 起 conhost
+ * 已经支持 VT 序列，Node 也会为 TTY 打开 ENABLE_VIRTUAL_TERMINAL_PROCESSING，
+ * 所以这里按系统版本判断即可。
+ *
+ * 万一某个终端仍然不吃这些转义序列，可以用 DATAIFY_TUI=0 退回编号列表；
+ * DATAIFY_TUI=1 则强制全屏列表。
+ */
 function supportsAnsi() {
+  const override = String(process.env.DATAIFY_TUI ?? "").trim().toLowerCase();
+  if (["0", "false", "no", "off"].includes(override)) {
+    return false;
+  }
+  if (["1", "true", "yes", "on"].includes(override)) {
+    return true;
+  }
   if (process.platform !== "win32") {
     return true;
   }
-  return Boolean(
+  // 终端自己报了身份（Windows Terminal / VS Code / ConEmu / ANSICON）也算数。
+  if (
     process.env.TERM ||
     process.env.TERM_PROGRAM ||
     process.env.WT_SESSION ||
     process.env.COLORTERM ||
     process.env.ConEmuANSI === "ON" ||
     process.env.ANSICON
-  );
+  ) {
+    return true;
+  }
+  // 都没有时按系统版本判断：os.release() 在 Windows 上形如 "10.0.22631"，
+  // 主版本 >= 10 即 Win10/11/Server 2016+，这些 conhost 支持 VT 序列。
+  const major = Number.parseInt(String(os.release()).split(".")[0], 10);
+  return Number.isFinite(major) && major >= 10;
 }
 
 async function numberedSelectOne({ title, items, defaultSelected }) {
