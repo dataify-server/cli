@@ -1,0 +1,10 @@
+.fuse_hidden*
+.git
+.gitignore
+.npmignore
+node_modules
+test/
+reports/
+docs/
+.cli-home-test/
+*.log

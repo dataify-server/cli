@@ -1,4 +1,5 @@
 import { parseKnownOptions } from "./args.js";
+import { runLogin } from "./auth-commands.js";
 import { logoText } from "./brand.js";
 import { DEFAULT_SERVER, DEFAULT_TOOLS, readConfig, writeConfig } from "./config.js";
 import { ensureMcpToken, runMcpInstaller } from "./mcp-install.js";
@@ -11,6 +12,7 @@ const OPTION_NAMES = new Set([
   "y",
   "skip_mcp",
   "skip_skill",
+  "skip_login",
   "github_token",
   "help"
 ]);
@@ -25,10 +27,11 @@ export async function runInit(tokens = []) {
   const yes = optionEnabled(options.yes) || optionEnabled(options.y);
   const skipMcp = optionEnabled(options.skip_mcp);
   const skipSkill = optionEnabled(options.skip_skill);
+  const skipLogin = optionEnabled(options.skip_login);
   const token = lastOption(options.token);
 
   process.stdout.write(`${logoText()}\nDataify init\n\n`);
-  const resolvedToken = await configureToken(token);
+  const resolvedToken = await configureToken(token, { yes, skipLogin });
 
   if (!skipMcp && await shouldRunStep("Install Dataify MCP into agent tools", yes)) {
     await runMcpInstaller({
@@ -49,6 +52,7 @@ export async function runInit(tokens = []) {
 
   process.stdout.write("\nDataify init finished.\n\n");
   process.stdout.write("Next commands:\n");
+  process.stdout.write("  dataify whoami\n");
   process.stdout.write("  dataify balance\n");
   process.stdout.write("  dataify tools\n");
   process.stdout.write("  dataify schema google_search\n");
@@ -57,7 +61,7 @@ export async function runInit(tokens = []) {
   process.stdout.write("  dataify skill\n");
 }
 
-async function configureToken(token) {
+async function configureToken(token, { yes = false, skipLogin = false } = {}) {
   const config = readConfig();
   const existingToken = config.token || process.env.DATAIFY_API_TOKEN || "";
 
@@ -70,6 +74,19 @@ async function configureToken(token) {
   if (existingToken) {
     process.stdout.write(`Using existing Dataify token from ${existingToken === config.token ? "config" : "environment"}.\n`);
     return existingToken;
+  }
+
+  const canPrompt = process.stdin.isTTY && process.stdout.isTTY;
+  if (!skipLogin && canPrompt) {
+    const useBrowserLogin = yes || (await promptConfirm("Sign in to Dataify with your browser now", true));
+    if (useBrowserLogin) {
+      await runLogin([]);
+      const loggedInToken = readConfig().token || "";
+      if (loggedInToken) {
+        return loggedInToken;
+      }
+      process.stdout.write("Browser login did not produce a token; falling back to manual entry.\n");
+    }
   }
 
   return ensureMcpToken("");
@@ -113,15 +130,21 @@ Usage:
   dataify init
   dataify init --token TOKEN
   dataify init --yes
+  dataify init --skip-login
   dataify init --skip-mcp
   dataify init --skip-skill
 
 Options:
   --token TOKEN      Save a Dataify token before running setup.
   --yes, -y          Run setup steps without confirmation prompts.
+  --skip-login       Never start a browser login; paste a token manually.
   --skip-mcp         Skip installing MCP into agent tools.
   --skip-skill       Skip installing Dataify skills.
   --github-token TOK GitHub token passed to dataify skill.
+
+Next commands:
+  dataify login      Sign in with your browser at any time.
+  dataify whoami     Show the signed-in account.
 
 Fixed MCP URL:
   ${DEFAULT_SERVER}?token=<your_api_token>&tools=${DEFAULT_TOOLS}

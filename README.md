@@ -8,7 +8,7 @@
 
 - Node.js `>= 18.17`
 - npm
-- A valid Dataify API token
+- A Dataify account (run `dataify login`), or an existing Dataify API token
 
 Check your local versions:
 
@@ -38,9 +38,48 @@ dataify --version
 dataify --help
 ```
 
+## Sign In
+
+The fastest way to get a token is a browser login:
+
+```bash
+dataify login
+```
+
+`dataify login` opens your default browser on the Dataify login page. After you sign in and approve the request, the CLI receives a one-time authorization code on a local loopback address, exchanges it for a new API Key, and saves that key to your config file. Every other command (`tools`, `balance`, `mcp`, tool calls) works immediately afterwards.
+
+On the browser authorization page you choose how long the key stays valid: 30 days (default), 90 days, or never expires.
+
+If the browser cannot be launched — for example on a headless machine or over SSH — print the URL only and open it yourself:
+
+```bash
+dataify login --no-browser
+```
+
+Repeated logins are a no-op while the saved key still works, because each successful login creates a **new** API Key on your account. Force a fresh one with:
+
+```bash
+dataify login --force
+```
+
+Show the signed-in account:
+
+```bash
+dataify whoami
+dataify whoami --json
+```
+
+Sign out. This deletes the CLI API Key on the server and removes the saved token locally; your other API Keys are untouched:
+
+```bash
+dataify logout
+```
+
+Every login is visible on the API Key page of the Dataify console and can be deleted there at any time.
+
 ## Configure API Token
 
-Set your Dataify API token before calling tools:
+`dataify login` is the recommended path. If you already have an API token, save it directly:
 
 ```bash
 dataify config set --token <your_api_token>
@@ -70,6 +109,8 @@ The config file is stored under your user home directory:
 ~/.dataify-mcp-cli/config.json
 ```
 
+On macOS and Linux the file is written with `0600` permissions and its directory with `0700`, so only your user account can read the saved token. After `dataify login` the file also holds a small `auth` block with the account name and key expiry — never the token in any other field.
+
 Token priority is:
 
 ```text
@@ -89,12 +130,20 @@ Non-interactive examples:
 ```bash
 dataify init --token YOUR_TOKEN --yes
 dataify init --token YOUR_TOKEN --skip-mcp --skip-skill
+dataify init --skip-login
 dataify init --github-token YOUR_GITHUB_TOKEN
 ```
 
-The wizard uses an existing token when available; in an interactive terminal it can prompt for a token, save it, then install MCP configs and Dataify skills.
+The wizard uses an existing token when available. Otherwise, in an interactive terminal, it offers a browser login first and falls back to pasting a token manually. Pass `--skip-login` to never start a browser login. It then installs MCP configs and Dataify skills.
 
 ## Quick Start
+
+Sign in and confirm who you are:
+
+```bash
+dataify login
+dataify whoami
+```
 
 List the tools available to your token:
 
@@ -174,6 +223,9 @@ Interactive commands can use a leading slash:
 ```text
 /help
 /init
+/login
+/logout
+/whoami
 /tools
 /balance
 /serp
@@ -509,10 +561,46 @@ Check whether the token is configured correctly:
 dataify config get
 ```
 
+Confirm the token is still accepted by the server:
+
+```bash
+dataify whoami
+```
+
 Set the token again if needed:
 
 ```bash
 dataify config set --token YOUR_TOKEN
+```
+
+### login does not open a browser
+
+Print the URL and open it manually:
+
+```bash
+dataify login --no-browser
+```
+
+The URL is always printed, even when a browser was launched, so you can copy it to another machine. The login page must be able to reach the printed `redirect_uri` on `127.0.0.1`, so open it on the same machine that is running the CLI.
+
+### login says you are already logged in
+
+That is expected while the saved key still works, because each login creates a new API Key. Sign in again with:
+
+```bash
+dataify login --force
+```
+
+### login times out
+
+The CLI waits five minutes for the browser callback, then stops listening. Run `dataify login` again. If the callback never arrives, check that a local firewall is not blocking loopback connections and that no proxy is rewriting `127.0.0.1` traffic.
+
+### whoami says the token is no longer valid
+
+The key expired or was deleted from the API Key page of the console. The CLI removes the stale token from your config automatically; sign in again:
+
+```bash
+dataify login
 ```
 
 ### schema cannot find a tool
@@ -544,3 +632,5 @@ dataify google_search --q "pizza" --arg-json json=1 --debug
 ### Token safety
 
 Your token is stored in your local user config file and is sent to the Dataify MCP service as the `token` query parameter. Do not commit tokens to GitHub or share logs that contain tokens.
+
+The login flow itself never puts a token in a URL. The authorization code travels in the loopback callback query string and is single-use; the token is only ever returned in a POST response body and written to the config file. `dataify login` and `dataify whoami` never print the token, and `dataify config get` redacts it.

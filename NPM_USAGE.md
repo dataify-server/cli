@@ -47,9 +47,50 @@ dataify --version
 dataify --help
 ```
 
+## 登录
+
+获取 token 最简单的方式是浏览器登录：
+
+```bash
+dataify login
+```
+
+`dataify login` 会拉起默认浏览器打开 Dataify 登录页。你在浏览器里登录并确认授权后，CLI 会在本机回环地址上收到一次性授权码，用它换取一把新的 API Key 并写入本地配置文件。之后 `tools`、`balance`、`mcp` 以及各类工具调用都可以直接使用。
+
+API Key 的有效期在浏览器授权页选择：30 天（默认）、90 天或永不过期。
+
+如果当前环境拉不起浏览器（比如无图形界面的服务器或 SSH 会话），可以只打印 URL 自己打开：
+
+```bash
+dataify login --no-browser
+```
+
+登录 URL 里的 `redirect_uri` 指向本机 `127.0.0.1`，所以请在运行 CLI 的同一台机器上打开这个链接。
+
+每次成功登录都会在账号下**新建**一把 API Key，因此在本地 token 仍然有效时重复执行 `dataify login` 不会重新登录，只会提示当前已登录。确实需要换一把新 key 时加 `--force`：
+
+```bash
+dataify login --force
+```
+
+查看当前登录账号：
+
+```bash
+dataify whoami
+dataify whoami --json
+```
+
+退出登录。这会在服务端删除本次登录创建的 CLI API Key，并清除本地保存的 token，不影响你的其他 API Key：
+
+```bash
+dataify logout
+```
+
+每次登录创建的 API Key 都能在 Dataify 控制台的 API Key 页面看到，也可以在那里随时删除。
+
 ## 配置 API Token
 
-首次使用前需要配置 Dataify API Token：
+推荐直接用 `dataify login`。如果你已经有 API Token，也可以手动配置：
 
 ```bash
 dataify config set --token <your_api_token>
@@ -79,13 +120,15 @@ dataify config path
 ~/.dataify-mcp-cli/config.json
 ```
 
+在 macOS / Linux 上，配置文件以 `0600` 权限写入，所在目录为 `0700`，只有当前用户可读。执行 `dataify login` 后，文件里还会多出一个 `auth` 段，保存账号名和 key 到期时间，不会重复保存 token。
+
 Token 使用优先级：
 
 ```text
 命令行 --token -> 环境变量 DATAIFY_API_TOKEN -> 本地配置文件 token
 ```
 
-如果在交互终端里直接执行 `dataify mcp` 或 `dataify init` 时还没有配置 token，CLI 会提示输入 token 并自动保存。非交互环境请先用 `dataify config set --token` 或直接传 `--token`。
+如果在交互终端里直接执行 `dataify mcp` 或 `dataify init` 时还没有配置 token，CLI 会先询问是否用浏览器登录，也可以选择手动粘贴 token 并自动保存。非交互环境请先执行 `dataify login`、`dataify config set --token`，或直接传 `--token`。
 
 ## 初始化向导
 
@@ -100,10 +143,11 @@ dataify init
 ```bash
 dataify init --token YOUR_TOKEN --yes
 dataify init --token YOUR_TOKEN --skip-mcp --skip-skill
+dataify init --skip-login
 dataify init --github-token YOUR_GITHUB_TOKEN
 ```
 
-初始化向导会优先使用已有 token；在交互终端里如果还没有 token，会提示输入并保存，然后可选地安装 MCP 配置和 Dataify skills。
+初始化向导会优先使用已有 token；在交互终端里如果还没有 token，会先询问是否用浏览器登录，选择不登录时再回落到手动粘贴 token。加 `--skip-login` 可以完全跳过浏览器登录。token 就绪后，可选地安装 MCP 配置和 Dataify skills。
 
 ## 交互模式
 
@@ -123,9 +167,12 @@ dataify
 /_____/\__,_/\__/\__,_/_/_/  \__, /  
                              /____/   
 
-Dataify MCP CLI 0.1.51 interactive mode
+Dataify MCP CLI 0.3.0 interactive mode
 Common commands:
   /init                              Run the setup wizard
+  /login                             Sign in with your browser
+  /logout                            Sign out and delete the CLI API key
+  /whoami                            Show the signed-in account
   /tools                              List available tools
   /balance                           Show account balance
   /serp                              Choose and call a SERP tool
@@ -151,6 +198,9 @@ dataify>
 
 ```text
 /init
+/login
+/logout
+/whoami
 /tools
 /balance
 /serp
@@ -465,6 +515,12 @@ npm config get prefix
 dataify config get
 ```
 
+也可以确认服务端是否还认这把 token：
+
+```bash
+dataify whoami
+```
+
 也可以直接重新设置 token：
 
 ```bash
@@ -502,3 +558,35 @@ dataify google_search --q "pizza" --arg-json json=1 --debug
 token 会保存在本机用户目录的配置文件中，也会作为 MCP 请求 URL 的 `token` 参数发送到 Dataify MCP 服务。
 
 请不要把 token 提交到 GitHub，也不要在公开日志中暴露 token。
+
+登录流程本身不会把 token 放进任何 URL：授权码只出现在本机回环回调里且只能使用一次，token 只在 POST 响应体中返回并写入配置文件。`dataify login` 和 `dataify whoami` 都不会打印 token，`dataify config get` 会对 token 做脱敏。
+
+### 6. login 没有自动打开浏览器
+
+改成只打印链接，自己复制到浏览器打开：
+
+```bash
+dataify login --no-browser
+```
+
+即使成功拉起了浏览器，CLI 也会同时把完整登录 URL 打印出来。注意这个链接里的回调地址指向本机 `127.0.0.1`，必须在运行 CLI 的同一台机器上打开。
+
+### 7. login 提示已经登录
+
+这是预期行为：本地 token 仍然有效时不会重复登录，避免在账号下堆积一堆 API Key。确实要换新 key 时执行：
+
+```bash
+dataify login --force
+```
+
+### 8. login 一直等不到回调
+
+CLI 最多等待 5 分钟，超时后会关闭本地监听并提示重新执行 `dataify login`。如果始终收不到回调，请检查本机防火墙是否拦截了回环连接，以及是否有代理软件改写了 `127.0.0.1` 的流量。
+
+### 9. whoami 提示 token 已失效
+
+说明 key 已过期，或者已在控制台 API Key 页面被删除。CLI 会自动清掉配置文件里那把失效的 token，重新登录即可：
+
+```bash
+dataify login
+```

@@ -188,6 +188,9 @@ function interactiveHelpText() {
 function quickStartText() {
   return `Common commands:
   /init                              Run the setup wizard
+  /login                             Sign in with your browser
+  /logout                            Sign out and delete the CLI API key
+  /whoami                            Show the signed-in account
   /tools                              List available tools
   /balance                           Show account balance
   /serp                              Choose and call a SERP tool
@@ -211,6 +214,9 @@ function completer(line) {
   const commands = [
     "/help",
     "/init",
+    "/login",
+    "/logout",
+    "/whoami",
     "/tools",
     "/balance",
     "/serp",
@@ -225,6 +231,9 @@ function completer(line) {
     "/exit",
     "tools",
     "init",
+    "login",
+    "logout",
+    "whoami",
     "balance",
     "serp",
     "scraper",

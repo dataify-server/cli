@@ -1,0 +1,18 @@
+# 本地测试产物：测试用的假 HOME（含 config.json/token），不要提交
+.cli-home-test/
+
+# 依赖
+node_modules/
+
+# 打包/发布产物（npm pack 生成）
+*.tgz
+.npm-cache/
+
+# FUSE / 同步工具产生的影子文件
+.fuse_hidden*
+src/.fuse_hidden*
+
+# 系统噪声
+.DS_Store
+Thumbs.db
+*.log

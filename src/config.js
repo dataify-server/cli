@@ -6,9 +6,15 @@ const CONFIG_DIR = ".dataify-mcp-cli";
 const CONFIG_FILE = "config.json";
 export const DEFAULT_SERVER = "https://mcp.dataify.com/mcp";
 export const DEFAULT_TOOLS = "user_info,web_unlocker,google_serp,yandex_serp,duckduckgo_serp,bing_serp,amazon,youtube,facebook,instagram,reddit,walmart,google,booking,indeed,airbnb,google_play_store,github,tiktok,linkedin,glassdoor,twitter,crunchbase,zillow,ebay";
+export const DEFAULT_AUTH_API_BASE_URL = "https://api.dataify.com";
+export const DEFAULT_DASHBOARD_LOGIN_URL = "https://dashboard.dataify.com/login";
+
+export function configDir() {
+  return path.join(os.homedir(), CONFIG_DIR);
+}
 
 export function configPath() {
-  return path.join(os.homedir(), CONFIG_DIR, CONFIG_FILE);
+  return path.join(configDir(), CONFIG_FILE);
 }
 
 export function readConfig() {
@@ -26,9 +32,63 @@ export function readConfig() {
 
 export function writeConfig(nextConfig) {
   const file = configPath();
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `${JSON.stringify(nextConfig, null, 2)}\n`, "utf8");
+  const dir = path.dirname(file);
+  fs.mkdirSync(dir, { recursive: true });
+  restrictPermissions(dir, 0o700);
+  fs.writeFileSync(file, `${JSON.stringify(nextConfig, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600
+  });
+  restrictPermissions(file, 0o600);
   return file;
+}
+
+// Windows 上 chmod 基本是空操作，失败也不该让命令挂掉；POSIX 上按登录接口文档
+// 第 16 节的要求把目录收紧到 0700、凭证文件收紧到 0600。
+function restrictPermissions(target, mode) {
+  try {
+    fs.chmodSync(target, mode);
+  } catch {
+    // ignore: filesystem does not support POSIX permissions
+  }
+}
+
+export function resolveAuthEndpoints(cliOptions = {}) {
+  const config = readConfig();
+  const apiBaseUrl = stripTrailingSlash(
+    lastOptionValue(cliOptions.auth_api_base_url) ||
+      lastOptionValue(cliOptions.auth_api) ||
+      config.authApiBaseUrl ||
+      DEFAULT_AUTH_API_BASE_URL
+  );
+  const dashboardLoginUrl =
+    lastOptionValue(cliOptions.dashboard_login_url) ||
+    lastOptionValue(cliOptions.login_url) ||
+    config.dashboardLoginUrl ||
+    DEFAULT_DASHBOARD_LOGIN_URL;
+
+  return { apiBaseUrl, dashboardLoginUrl };
+}
+
+export function resolveRequestTimeout(cliOptions = {}) {
+  const config = readConfig();
+  return parseTimeout(
+    lastOptionValue(cliOptions.timeout) ||
+      process.env.DATAIFY_MCP_TIMEOUT ||
+      config.timeout ||
+      "120000"
+  );
+}
+
+export function lastOptionValue(value) {
+  if (Array.isArray(value)) {
+    return value.at(-1);
+  }
+  return value;
+}
+
+function stripTrailingSlash(value) {
+  return String(value || "").replace(/\/+$/, "");
 }
 
 export function resolveRuntimeOptions(cliOptions = {}) {

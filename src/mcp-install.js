@@ -133,15 +133,16 @@ export async function ensureMcpToken(token) {
   }
 
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    throw new Error("No Dataify token found. Run dataify config set --token TOKEN first, or pass --token TOKEN.");
+    throw new Error("No Dataify token found. Run dataify login, or pass --token TOKEN.");
   }
 
   process.stdout.write("No Dataify token found.\n");
-  process.stdout.write("Please paste your Dataify API token. It will be saved for future dataify commands.\n");
+  process.stdout.write("Run dataify login to sign in with your browser, or paste an API token below.\n");
+  process.stdout.write("The token will be saved for future dataify commands.\n");
   const input = await promptHidden("Dataify API token: ");
   const nextToken = input.trim();
   if (!nextToken) {
-    throw new Error("No token entered. Run dataify config set --token TOKEN first, or pass --token TOKEN.");
+    throw new Error("No token entered. Run dataify login, or pass --token TOKEN.");
   }
 
   const file = writeConfig({ ...readConfig(), token: nextToken });

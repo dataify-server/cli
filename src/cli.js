@@ -1,4 +1,5 @@
 import { parseCli, parseHeaders, parseKnownOptions, parseToolArgs, readStdin } from "./args.js";
+import { runLogin, runLogout, runWhoami } from "./auth-commands.js";
 import { runCategoryWizard } from "./category.js";
 import { McpHttpClient } from "./client.js";
 import { DEFAULT_SERVER, DEFAULT_TOOLS, configPath, readConfig, resolveRuntimeOptions, writeConfig } from "./config.js";
@@ -10,7 +11,7 @@ import { runSkillInstaller } from "./skill-install.js";
 import { withSpinner } from "./spinner.js";
 import { VERSION } from "./version.js";
 
-const BLOCKED_COMMANDS = new Set(["login", "logout", "whoami"]);
+export const NO_TOKEN_MESSAGE = "No Dataify token found. Run dataify login, or pass --token TOKEN.";
 
 export async function main(argv, options = {}) {
   const parsed = parseCli(argv);
@@ -47,6 +48,21 @@ export async function main(argv, options = {}) {
 
   if (command === "init") {
     await runInit(parsed.rest);
+    return;
+  }
+
+  if (command === "login") {
+    await runLogin(parsed.rest);
+    return;
+  }
+
+  if (command === "logout") {
+    await runLogout(parsed.rest);
+    return;
+  }
+
+  if (command === "whoami") {
+    await runWhoami(parsed.rest);
     return;
   }
 
@@ -88,7 +104,7 @@ export async function main(argv, options = {}) {
 
     if (command === "balance") {
       if (!runtime.token) {
-        throw new Error("No Dataify token found. Run dataify config set --token TOKEN first, or pass --token TOKEN.");
+        throw new Error(NO_TOKEN_MESSAGE);
       }
       const result = await withSpinner("Loading balance...", () => client.callTool("query_user_balance", {}), spinnerOptions(globalOptions));
       if (result?.isError) {
@@ -130,9 +146,6 @@ export async function main(argv, options = {}) {
     }
 
     if (command === "direct-call") {
-      if (BLOCKED_COMMANDS.has(parsed.options.tool)) {
-        throw new Error("This command is not available in this build.");
-      }
       await runToolCall(client, parsed.options.tool, rest, globalOptions);
       return;
     }
@@ -233,6 +246,9 @@ Usage:
   dataify
   dataify chat
   dataify init
+  dataify login [--force] [--no-browser]
+  dataify logout
+  dataify whoami [--json]
   dataify tools [--token TOKEN]
   dataify balance [--token TOKEN]
   dataify serp
@@ -255,6 +271,9 @@ Common options:
 Interactive commands:
   /help              Show interactive help
   /init              Run the setup wizard
+  /login             Sign in with your browser
+  /logout            Sign out and delete the CLI API key
+  /whoami            Show the signed-in account
   /tools             List available tools
   /balance           Show account balance
   /serp              Choose and call a SERP tool
@@ -284,6 +303,8 @@ Fixed MCP URL:
 Examples:
   dataify
   dataify init
+  dataify login
+  dataify whoami
   dataify balance
   dataify serp
   dataify scraper
