@@ -3,6 +3,8 @@ import { stdin, stdout, stderr } from "node:process";
 import { logoText } from "./brand.js";
 import { t } from "./i18n.js";
 import { runLanguageCommand } from "./language-command.js";
+import { createCoalescedOutput, guardInterfaceErrors } from "./tty-resize.js";
+import { recordEvent } from "./crash-log.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit"]);
 
@@ -17,6 +19,9 @@ export async function runInteractive(execute, options = {}) {
       line = await promptInteractiveLine(history);
     } catch (error) {
       if (error?.code === "ERR_USE_AFTER_CLOSE") {
+        // 输入流被关掉（窗口被关、或控制台 resize 把 input 打坏了）时 readline 会走到
+        // 这里，看上去就是"莫名其妙自己退出"。记一笔现场方便事后定位。
+        recordEvent("replExit", new Error(`readline closed: ${error.message || error.code}`));
         break;
       }
       throw error;
@@ -82,13 +87,18 @@ export async function runInteractive(execute, options = {}) {
 }
 
 async function promptInteractiveLine(history) {
+  // 直接把 process.stdout 交给 readline 的话，它会挂在每次 resize 上整行重画提示符；
+  // 拖拽窗口时 conhost 在 modal loop 里，连续同步写会把事件循环堵死（见 tty-resize.js）。
+  const { output, dispose } = createCoalescedOutput(stdout);
   const rl = readline.createInterface({
     input: stdin,
-    output: stdout,
+    output,
     history: [...history],
     historySize: 1000,
     completer
   });
+
+  guardInterfaceErrors(rl);
 
   rl.on("SIGINT", () => {
     rl.close();
@@ -98,6 +108,7 @@ async function promptInteractiveLine(history) {
     return await rl.question("dataify> ");
   } finally {
     rl.close();
+    dispose();
   }
 }
 
