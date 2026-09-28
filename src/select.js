@@ -39,6 +39,17 @@ const ITEM_SEPARATOR = " - ";
 const SEPARATOR_WIDTH = 3;
 // 全屏选择器给标题/提示/空行/状态行预留的行数。
 const RESERVED_ROWS = 5;
+// 拖动窗口时 resize 会连着触发十几次，而且两次之间大约相隔 60~120ms。
+// 防抖窗口必须大于这个间隔，否则每一次都会漏过去变成一次全屏重绘（实测 50ms 时
+// 一次拖动会重画 15 次，conhost 上看着像卡死）。200ms 能把整段拖动收敛成一次重画。
+const RESIZE_DEBOUNCE_MS = 200;
+// 有些终端不发 resize 事件，用它兜底；只在尺寸真的变了时才重画。
+const SIZE_POLL_MS = 200;
+
+// 拖动过程中 process.stdout.columns 可能返回 0/undefined，
+// 这时沿用上一次有效值，避免先画一帧按默认宽度排的错误画面。
+let lastGoodColumns = 0;
+let lastGoodRows = 0;
 
 function terminalColumns() {
   // 允许用 DATAIFY_WIDTH 强制指定列数（某些 Windows 控制台报的宽度不准）。
@@ -47,14 +58,25 @@ function terminalColumns() {
     return Math.max(20, override);
   }
   const reported = Math.floor(Number(process.stdout.columns));
-  const width = Number.isFinite(reported) && reported > 0 ? reported : FALLBACK_COLUMNS;
+  if (Number.isFinite(reported) && reported > 0) {
+    lastGoodColumns = reported;
+  }
   // 留 1 列余量：Windows 控制台里把最后一列写满会触发自动换行（pending wrap），
   // 且它报的宽度可能略大于可见窗口，结果就是末尾的 "…" 被挤到屏幕外，看着像被硬切。
-  return Math.max(20, width - 1);
+  return Math.max(20, (lastGoodColumns || FALLBACK_COLUMNS) - 1);
 }
 
 function terminalRows() {
-  return Math.max(6, Number(process.stdout.rows) || FALLBACK_ROWS);
+  const reported = Math.floor(Number(process.stdout.rows));
+  if (Number.isFinite(reported) && reported > 0) {
+    lastGoodRows = reported;
+  }
+  return Math.max(6, lastGoodRows || FALLBACK_ROWS);
+}
+
+// 当前尺寸指纹，用来判断"变没变"，避免无谓重画。
+function terminalSizeKey() {
+  return `${terminalColumns()}x${terminalRows()}`;
 }
 
 function singleLine(text) {
@@ -341,8 +363,10 @@ function checkboxSelectMany({ title, items, defaultSelected }) {
     const selected = new Set(defaultSelected);
     let cursor = 0;
     let message = "";
-    const windowRows = Math.max(3, terminalRows() - RESERVED_ROWS);
     let done = false;
+    let lastRenderedSize = "";
+    let resizeTimer = null;
+    let sizeWatch = null;
 
     readline.emitKeypressEvents(process.stdin);
     process.stdin.setRawMode(true);
@@ -350,13 +374,44 @@ function checkboxSelectMany({ title, items, defaultSelected }) {
 
     const cleanup = () => {
       process.stdin.off("keypress", onKeypress);
+      process.stdout.off("resize", scheduleRender);
+      if (resizeTimer) {
+        clearTimeout(resizeTimer);
+        resizeTimer = null;
+      }
+      if (sizeWatch) {
+        clearInterval(sizeWatch);
+        sizeWatch = null;
+      }
       process.stdin.setRawMode(false);
       process.stdout.write("\x1b[?25h");
     };
 
+    // 窗口尺寸变了就重画：resize 事件（拖动时会连续触发）+ 兜底轮询。
+    const scheduleRender = () => {
+      if (done) {
+        return;
+      }
+      // 尺寸没变就不用重画（有些终端会发重复/无效的 resize）。
+      if (terminalSizeKey() === lastRenderedSize) {
+        return;
+      }
+      if (resizeTimer) {
+        clearTimeout(resizeTimer);
+      }
+      resizeTimer = setTimeout(() => {
+        resizeTimer = null;
+        render();
+      }, RESIZE_DEBOUNCE_MS);
+    };
+
     const render = () => {
+      if (done) {
+        return;
+      }
       process.stdout.write("\x1b[2J\x1b[H\x1b[?25l");
       process.stdout.write(`${title}\n`);
+      const windowRows = Math.max(3, terminalRows() - RESERVED_ROWS);
       const window = visibleWindow(items, cursor, windowRows);
       const nameWidth = nameColumnWidth(items, displayWidth("> [x] "));
       process.stdout.write(`${t("select.checkboxHelp")}${scrollHint(cursor, items.length, windowRows)}\n\n`);
@@ -369,6 +424,7 @@ function checkboxSelectMany({ title, items, defaultSelected }) {
       if (message) {
         process.stdout.write(`\n${message}\n`);
       }
+      lastRenderedSize = terminalSizeKey();
     };
 
     const finish = () => {
@@ -419,6 +475,12 @@ function checkboxSelectMany({ title, items, defaultSelected }) {
     };
 
     process.stdin.on("keypress", onKeypress);
+    process.stdout.on("resize", scheduleRender);
+    sizeWatch = setInterval(() => {
+      if (!done && terminalSizeKey() !== lastRenderedSize) {
+        scheduleRender();
+      }
+    }, SIZE_POLL_MS);
     render();
   });
 }
@@ -428,6 +490,9 @@ function listSelectOne({ title, items, defaultSelected }) {
     let cursor = Math.max(0, items.findIndex((item) => item.id === defaultSelected));
     let done = false;
     let showDetails = false;
+    let lastRenderedSize = "";
+    let resizeTimer = null;
+    let sizeWatch = null;
 
     readline.emitKeypressEvents(process.stdin);
     process.stdin.setRawMode(true);
@@ -435,11 +500,41 @@ function listSelectOne({ title, items, defaultSelected }) {
 
     const cleanup = () => {
       process.stdin.off("keypress", onKeypress);
+      process.stdout.off("resize", scheduleRender);
+      if (resizeTimer) {
+        clearTimeout(resizeTimer);
+        resizeTimer = null;
+      }
+      if (sizeWatch) {
+        clearInterval(sizeWatch);
+        sizeWatch = null;
+      }
       process.stdin.setRawMode(false);
       process.stdout.write("\x1b[?25h");
     };
 
+    // 窗口尺寸变了就重画：resize 事件（拖动时会连续触发）+ 兜底轮询。
+    const scheduleRender = () => {
+      if (done) {
+        return;
+      }
+      // 尺寸没变就不用重画（有些终端会发重复/无效的 resize）。
+      if (terminalSizeKey() === lastRenderedSize) {
+        return;
+      }
+      if (resizeTimer) {
+        clearTimeout(resizeTimer);
+      }
+      resizeTimer = setTimeout(() => {
+        resizeTimer = null;
+        render();
+      }, RESIZE_DEBOUNCE_MS);
+    };
+
     const render = () => {
+      if (done) {
+        return;
+      }
       process.stdout.write("\x1b[2J\x1b[H\x1b[?25l");
       process.stdout.write(`${title}\n`);
       const panel = showDetails ? detailsPanel(items[cursor]) : [];
@@ -456,6 +551,7 @@ function listSelectOne({ title, items, defaultSelected }) {
       if (panel.length) {
         process.stdout.write(`\n${panel.join("\n")}\n`);
       }
+      lastRenderedSize = terminalSizeKey();
     };
 
     const finish = () => {
@@ -492,6 +588,12 @@ function listSelectOne({ title, items, defaultSelected }) {
     };
 
     process.stdin.on("keypress", onKeypress);
+    process.stdout.on("resize", scheduleRender);
+    sizeWatch = setInterval(() => {
+      if (!done && terminalSizeKey() !== lastRenderedSize) {
+        scheduleRender();
+      }
+    }, SIZE_POLL_MS);
     render();
   });
 }

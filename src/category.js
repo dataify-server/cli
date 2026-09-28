@@ -79,8 +79,7 @@ const CATEGORY_TOOLS = {
     "tiktok_shop",
     "twitter_post",
     "twitter_profile",
-    "indeed_companies_info",
-    "indeed_job_listings"
+    "indeed_companies_info"
   ],
   webunlock: [
     "request_web_unlocker"

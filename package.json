@@ -1,6 +1,6 @@
 {
   "name": "dataify-mcp-cli",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Cross-platform CLI for calling Dataify MCP API tools.",
   "type": "module",
   "bin": {
