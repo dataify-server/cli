@@ -15,13 +15,8 @@ export function formatToolResult(result, options = {}) {
     return `${JSON.stringify(result.structuredContent, null, 2)}\n`;
   }
 
-  const content = Array.isArray(result?.content) ? result.content : [];
-  const textParts = content
-    .filter((item) => item && item.type === "text" && typeof item.text === "string")
-    .map((item) => item.text);
-
-  if (textParts.length > 0) {
-    const text = textParts.join("\n");
+  const text = toolTextContent(result);
+  if (text !== null) {
     const parsed = tryParseJson(text);
     if (parsed !== undefined) {
       return `${JSON.stringify(parsed, null, 2)}\n`;
@@ -30,6 +25,54 @@ export function formatToolResult(result, options = {}) {
   }
 
   return `${JSON.stringify(result, null, 2)}\n`;
+}
+
+// content 里所有 text 片段拼起来；没有 text 片段时返回 null（区分「空文本」和「没有文本」）。
+function toolTextContent(result) {
+  const content = Array.isArray(result?.content) ? result.content : [];
+  const parts = content
+    .filter((item) => item && item.type === "text" && typeof item.text === "string")
+    .map((item) => item.text);
+  return parts.length > 0 ? parts.join("\n") : null;
+}
+
+/**
+ * 取工具返回里的「业务载荷」：优先 structuredContent，其次把 text 当 JSON 解析。
+ * 返回 undefined 表示这些文本不是 JSON。
+ */
+export function toolResponseJson(result) {
+  if (result && Object.prototype.hasOwnProperty.call(result, "structuredContent")) {
+    return result.structuredContent;
+  }
+  const text = toolTextContent(result);
+  if (text === null) {
+    return undefined;
+  }
+  return tryParseJson(text);
+}
+
+// 服务端有时把业务失败包在「正常返回」里（例如无效 Token → {"code":400,"data":"验证失败"}），
+// 这种既不触发 JSON-RPC error、也不带 isError，CLI 会以退出码 0 结束，脚本会把失败当成功。
+// 只认顶层数字型 code（>=400 视为失败），避免误伤工具数据里正常的业务字段。
+const BUSINESS_ERROR_CODE_MIN = 400;
+
+export function detectToolBusinessError(result) {
+  const payload = toolResponseJson(result);
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  const code = payload.code;
+  const numeric =
+    typeof code === "number"
+      ? code
+      : typeof code === "string" && /^\d+$/.test(code.trim())
+        ? Number(code)
+        : NaN;
+  if (!Number.isFinite(numeric) || numeric < BUSINESS_ERROR_CODE_MIN) {
+    return null;
+  }
+  const detail = singleLine(String(payload.data ?? payload.message ?? ""));
+  return { code: numeric, message: detail.slice(0, 200) };
 }
 
 export function writeOutput(text, outputFile) {
@@ -58,7 +101,9 @@ export function printTools(tools, options = {}) {
 
   return renderTable(rows, [
     { key: "#", title: "#", align: "right" },
-    { key: "Tool", title: t("output.col.tool"), maxWidth: 32 },
+    // 82 个工具名里最长的是 linkedin_job_listings_information（33 字符），
+    // 列宽上限 36 保证它不会被折成两行（用户照表格复制工具名时才不会出错）。
+    { key: "Tool", title: t("output.col.tool"), maxWidth: 36 },
     { key: "Description", title: t("output.col.description"), flex: true, minWidth: 24 }
   ]);
 }

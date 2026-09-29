@@ -1,10 +1,10 @@
 import fs from "node:fs";
+import { t } from "./i18n.js";
 
+// 全局选项白名单：不在这里的选项一律报错，不再出现「接受但静默丢弃」。
+// 说明：--endpoint 会在 setOption 里被归一成 server（历史遗留别名），两者已一并移除。
 const GLOBAL_OPTIONS = new Set([
-  "server",
-  "endpoint",
   "token",
-  "tools",
   "timeout",
   "raw",
   "pretty",
@@ -44,7 +44,9 @@ export function parseCli(argv) {
     command: "",
     rest: [],
     options: {},
-    global: {}
+    global: {},
+    // 前置位置出现的、不在白名单里的选项；由调用方决定何时报错（要等语言确定后才能给出本地化提示）
+    unknownOptions: []
   };
 
   let index = 0;
@@ -58,6 +60,9 @@ export function parseCli(argv) {
 
     const parsed = readOption(argv, index);
     index = parsed.nextIndex;
+    if (!GLOBAL_OPTIONS.has(parsed.key)) {
+      result.unknownOptions.push(flagLabel(parsed.key));
+    }
     setOption(result.global, parsed.key, parsed.value);
   }
 
@@ -232,11 +237,31 @@ function normalizeKey(key) {
   return key.replace(/^-+/, "").replace(/-/g, "_");
 }
 
+/** 判断是不是「选项」token；负数（如 -1）算值，不算选项。 */
+export function isFlagToken(token) {
+  const text = String(token ?? "");
+  return text.startsWith("-") && !/^-\d/.test(text);
+}
+
 function isOptionValue(token) {
-  if (!token.startsWith("-")) {
-    return true;
+  return !isFlagToken(token);
+}
+
+/** key（已归一化）→ 面向用户的 --kebab-case 写法。 */
+function flagLabel(key) {
+  return `--${String(key).replace(/_/g, "-")}`;
+}
+
+/**
+ * 各子命令用各自的已知选项集合解析完之后，用它检查剩下的 token：
+ * 还残留 --xxx 就说明用户传了不支持的选项，直接报错而不是静默丢弃。
+ */
+export function rejectUnknownOptions(tokens) {
+  const list = Array.isArray(tokens) ? tokens : [tokens];
+  const flags = list.filter((token) => isFlagToken(token));
+  if (flags.length > 0) {
+    throw new Error(t("cli.error.unknownOption", { options: flags.join(", ") }));
   }
-  return /^-\d/.test(token);
 }
 
 function setOption(target, key, value) {

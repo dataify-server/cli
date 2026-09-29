@@ -243,15 +243,34 @@ function formatDuration(durationMs) {
   return `${Math.round(seconds)}s`;
 }
 
+/**
+ * 子进程输出可能是本地代码页（中文 Windows 上 cmd.exe 的报错是 GBK），按 UTF-8 解码会得到
+ * 一串 U+FFFD。这里不猜代码页，只把「确定是乱码」的部分清掉并限长，避免把一屏方块丢给用户。
+ */
+function cleanChildOutput(text) {
+  return singleLine(String(text || "").replace(/\uFFFD+/g, " ")).slice(0, 200);
+}
+
+/** 判断子进程输出是不是「命令不存在」（兼容 cmd 与 PowerShell 的中英文措辞）。 */
+function isCommandNotFoundOutput(text) {
+  return /不是内部或外部命令|is not recognized as an internal or external command|无法将.*识别为|CommandNotFoundException/i.test(String(text || ""));
+}
+
 async function installClaudeCode(mcpUrl) {
   const args = ["mcp", "add", "--transport", "http", "--scope", "user", SERVER_NAME, mcpUrl];
   const result = await runClaudeCommand(args);
+  const output = `${result.stderr || ""}${result.stdout || ""}`;
 
-  if (result.error) {
+  if (result.error || isCommandNotFoundOutput(output)) {
+    // 「命令不存在」必须和「命令执行失败」区分开：ENOENT 以前会被 cmd 兜底包装成一条
+    // 本地化的「不是内部或外部命令」，既变成乱码、又丢掉了 not-found 语义。
+    const notFound = result.error?.code === "ENOENT" || isCommandNotFoundOutput(output);
     return {
       ok: false,
       name: "Claude Code",
-      message: t("mcp.status.claudeNotFound")
+      message: notFound
+        ? t("mcp.status.claudeNotFound")
+        : cleanChildOutput(result.error?.message) || t("mcp.status.claudeFailed")
     };
   }
 
@@ -259,7 +278,7 @@ async function installClaudeCode(mcpUrl) {
     return {
       ok: false,
       name: "Claude Code",
-      message: singleLine(result.stderr || result.stdout || t("mcp.status.claudeFailed"))
+      message: cleanChildOutput(output) || t("mcp.status.claudeFailed")
     };
   }
 
@@ -303,7 +322,39 @@ async function runCommand(command, args) {
     return direct;
   }
 
+  // Windows 上 .cmd/.bat 不能直接 spawn（Node 会报 ENOENT —— 与「命令不存在」是同一个错误码），
+  // 所以不能只看错误码，得自己确认命令是否真的在 PATH 里（见 commandExistsOnPath）：
+  //   在   → 退回 cmd.exe 执行（.cmd/.bat 的正路）
+  //   不在 → 保留 ENOENT 语义，让上层给出「未找到命令」，而不是把 cmd 的本地化报错当结果
+  if (direct.error.code === "ENOENT" && !commandExistsOnPath(command)) {
+    return direct;
+  }
+
   return spawnCommand(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", commandLine(command, args)]);
+}
+
+/**
+ * Windows：命令是否真的存在于 PATH。
+ * 自己按 PATHEXT 逐个查，不用 `where`：`where <name>` 不会自动补 .cmd/.bat 后缀
+ * （只有显式写 `where npm.cmd` 才命中），拿它判断会把「存在的 .cmd」误判成不存在。
+ */
+function commandExistsOnPath(command) {
+  const exts = String(process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);
+  const dirs = String(process.env.PATH || "").split(path.delimiter).filter(Boolean);
+  const names = [command, ...exts.map((ext) => `${command}${ext.toLowerCase()}`)];
+  for (const dir of dirs) {
+    for (const name of names) {
+      const candidate = path.join(dir, name);
+      try {
+        if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+          return true;
+        }
+      } catch {
+        // 目录不存在/无权限 → 继续找下一个
+      }
+    }
+  }
+  return false;
 }
 
 function spawnCommand(command, args) {

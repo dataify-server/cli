@@ -1,4 +1,4 @@
-import { parseKnownOptions } from "./args.js";
+import { parseKnownOptions, rejectUnknownOptions } from "./args.js";
 import {
   AUTH_ENDPOINTS,
   LOGIN_TIMEOUT_MS,
@@ -29,7 +29,8 @@ const LOGOUT_OPTIONS = new Set([...ENDPOINT_OPTIONS, "help"]);
 const WHOAMI_OPTIONS = new Set([...ENDPOINT_OPTIONS, "token", "json", "raw", "help"]);
 
 export async function runLogin(tokens = []) {
-  const { options } = parseKnownOptions(tokens, LOGIN_OPTIONS);
+  const { options, rest } = parseKnownOptions(tokens, LOGIN_OPTIONS);
+  rejectUnknownOptions(rest);
   if (optionEnabled(options.help)) {
     process.stdout.write(loginHelpText());
     return;
@@ -184,7 +185,8 @@ export async function runLogin(tokens = []) {
 }
 
 export async function runLogout(tokens = []) {
-  const { options } = parseKnownOptions(tokens, LOGOUT_OPTIONS);
+  const { options, rest } = parseKnownOptions(tokens, LOGOUT_OPTIONS);
+  rejectUnknownOptions(rest);
   if (optionEnabled(options.help)) {
     process.stdout.write(logoutHelpText());
     return;
@@ -227,7 +229,8 @@ export async function runLogout(tokens = []) {
 }
 
 export async function runWhoami(tokens = []) {
-  const { options } = parseKnownOptions(tokens, WHOAMI_OPTIONS);
+  const { options, rest } = parseKnownOptions(tokens, WHOAMI_OPTIONS);
+  rejectUnknownOptions(rest);
   if (optionEnabled(options.help)) {
     process.stdout.write(whoamiHelpText());
     return;

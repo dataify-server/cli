@@ -1,8 +1,21 @@
 import { DEFAULT_SERVER } from "./config.js";
+import { t } from "./i18n.js";
 import { VERSION } from "./version.js";
 
 const JSON_RPC_VERSION = "2.0";
 const DEFAULT_PROTOCOL_VERSION = "2025-11-25";
+
+/** --debug 输出用：只留首尾各 4 位，避免 Token 明文进日志、截图或工单。 */
+export function maskSecret(value) {
+  const text = String(value ?? "");
+  if (!text) {
+    return "";
+  }
+  if (text.length <= 8) {
+    return "****";
+  }
+  return `${text.slice(0, 4)}****${text.slice(-4)}`;
+}
 
 export class McpHttpClient {
   constructor(options = {}) {
@@ -94,11 +107,11 @@ export class McpHttpClient {
     const response = await this.postJson(payload);
 
     if (!response || response.id === undefined || response.id === null) {
-      throw new Error(`MCP response for ${method} did not include an id`);
+      throw new Error(t("cli.error.mcpNoId", { method }));
     }
     if (response.error) {
       const details = response.error.message || JSON.stringify(response.error);
-      throw new Error(`MCP ${method} failed: ${details}`);
+      throw new Error(t("cli.error.mcpFailed", { method, details }));
     }
     return response;
   }
@@ -118,7 +131,7 @@ export class McpHttpClient {
     const headers = this.buildHeaders("application/json, text/event-stream");
     const body = JSON.stringify(payload);
     if (this.debug) {
-      process.stderr.write(`POST ${this.endpointWithAuth()}\n${body}\n`);
+      process.stderr.write(`POST ${this.redactedEndpoint()}\n${body}\n`);
     }
 
     const response = await fetch(this.endpointWithAuth(), {
@@ -139,7 +152,7 @@ export class McpHttpClient {
 
     if (!response.ok && response.status !== 202) {
       const text = await response.text();
-      throw new Error(`HTTP ${response.status} ${response.statusText}: ${text.trim()}`);
+      throw new Error(t("cli.error.httpStatus", { status: response.status, statusText: response.statusText, body: text.trim() }));
     }
 
     const contentType = response.headers.get("content-type") || "";
@@ -155,7 +168,7 @@ export class McpHttpClient {
     }
 
     const text = await response.text();
-    throw new Error(`Unexpected MCP response content type "${contentType}": ${text.trim()}`);
+    throw new Error(t("cli.error.badContentType", { contentType, body: text.trim() }));
   }
 
   buildHeaders(accept) {
@@ -180,6 +193,15 @@ export class McpHttpClient {
     }
     if (this.tools) {
       url.searchParams.set("tools", this.tools);
+    }
+    return url.toString();
+  }
+
+  /** --debug 打印用的地址：Token 已脱敏。真实请求仍走 endpointWithAuth()。 */
+  redactedEndpoint() {
+    const url = new URL(this.endpointWithAuth());
+    if (url.searchParams.has("token")) {
+      url.searchParams.set("token", maskSecret(this.token));
     }
     return url.toString();
   }
@@ -223,5 +245,5 @@ export function parseSseJsonRpc(text, requestId) {
   if (response) {
     return response;
   }
-  throw new Error("SSE response did not include a JSON-RPC response message");
+  throw new Error(t("cli.error.sseNoResponse"));
 }

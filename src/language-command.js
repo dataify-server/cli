@@ -1,3 +1,4 @@
+import { rejectUnknownOptions } from "./args.js";
 import { configPath, readConfig, writeConfig } from "./config.js";
 import { getLanguage, languageName, normalizeLanguage, setLanguage, t } from "./i18n.js";
 import { createSelector } from "./select.js";
@@ -21,6 +22,7 @@ export function saveLanguage(value) {
  * 其余情况（命令行一次性调用、非 TTY）保持原来的「打印当前语言 + 用法」行为，避免脚本被卡住。
  */
 export async function runLanguageCommand(tokens = [], options = {}) {
+  rejectUnknownOptions(tokens);
   const write = options.write || ((text) => process.stdout.write(text));
   const values = (Array.isArray(tokens) ? tokens : [tokens]).filter((token) => token && !String(token).startsWith("-"));
   let value = values.at(-1);

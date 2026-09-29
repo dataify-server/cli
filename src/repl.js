@@ -1,7 +1,7 @@
 import readline from "node:readline/promises";
 import { stdin, stdout, stderr } from "node:process";
 import { logoText } from "./brand.js";
-import { t } from "./i18n.js";
+import { getLanguage, setLanguage, t } from "./i18n.js";
 import { runLanguageCommand } from "./language-command.js";
 import { createCoalescedOutput, guardInterfaceErrors } from "./tty-resize.js";
 import { recordEvent } from "./crash-log.js";
@@ -184,11 +184,16 @@ function normalizeCommandName(input) {
 }
 
 async function runTokens(execute, tokens) {
+  // `--language X` 只应影响这一条命令的输出：会话语言只能在交互模式里用 /language 切换。
+  // （/language 走的是 repl 自己的分支，不经过 execute，所以这里统一还原是安全的。）
+  const sessionLanguage = getLanguage();
   try {
     await execute(tokens);
   } catch (error) {
     const message = error && error.message ? error.message : String(error);
     stderr.write(`${message}\n`);
+  } finally {
+    setLanguage(sessionLanguage);
   }
 }
 

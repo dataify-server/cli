@@ -30,6 +30,7 @@ MESSAGES.en = {
 Usage:
   dataify
   dataify chat
+  dataify repl
   dataify init
   dataify login [--force] [--no-browser]
   dataify logout
@@ -107,6 +108,13 @@ Examples:
   "cli.error.noToken": "No Dataify token found. Run dataify login, or pass --token TOKEN.",
   "cli.error.unknownCommand": `Unknown command "{command}"`,
   "cli.error.unknownConfigCommand": `Unknown config command "{subcommand}"`,
+  "cli.error.unknownOption": `Unsupported option: {options}. Run dataify --help to see available options.`,
+  "cli.error.mcpNoId": `MCP response for {method} did not include an id`,
+  "cli.error.mcpFailed": `MCP {method} failed: {details}`,
+  "cli.error.httpStatus": `HTTP {status} {statusText}: {body}`,
+  "cli.error.badContentType": `Unexpected MCP response content type "{contentType}": {body}`,
+  "cli.error.sseNoResponse": "SSE response did not include a JSON-RPC response message",
+  "cli.error.unsupportedConfigField": `config set does not support: {fields} (supported: --token, --timeout, --language)`,
   "cli.error.balanceFailed": "Balance query returned an error",
   "cli.error.toolFailed": `Tool "{tool}" returned an error`,
   "cli.error.schemaUsage": "Usage: dataify schema <tool>",
@@ -284,7 +292,7 @@ Fixed MCP URL:
   "mcp.install.codex": "Updating Codex MCP config...",
   "mcp.install.vscode": "Updating VS Code MCP config...",
   "mcp.install.generic": "Installing {name} MCP...",
-  "mcp.status.claudeNotFound": "claude command was not found from Node.js. Check that Claude Code is installed and available in PATH.",
+  "mcp.status.claudeNotFound": "claude command not found: install Claude Code CLI and make sure claude is on PATH (reopen your terminal after installing).",
   "mcp.status.claudeFailed": "claude mcp add failed.",
   "mcp.status.claudeInstalled": "Installed with claude mcp add --scope user.",
   "mcp.status.updated": "Updated {file}",
@@ -354,6 +362,7 @@ MESSAGES.zh = {
 用法:
   dataify
   dataify chat
+  dataify repl
   dataify init
   dataify login [--force] [--no-browser]
   dataify logout
@@ -431,6 +440,13 @@ MESSAGES.zh = {
   "cli.error.noToken": "未找到 Dataify Token。请运行 dataify login，或通过 --token TOKEN 传入。",
   "cli.error.unknownCommand": `未知命令 "{command}"`,
   "cli.error.unknownConfigCommand": `未知的 config 子命令 "{subcommand}"`,
+  "cli.error.unknownOption": `不支持的选项：{options}。运行 dataify --help 查看可用选项。`,
+  "cli.error.mcpNoId": `MCP 响应缺少 id（{method}）`,
+  "cli.error.mcpFailed": `MCP {method} 调用失败：{details}`,
+  "cli.error.httpStatus": `HTTP {status} {statusText}：{body}`,
+  "cli.error.badContentType": `非预期的 MCP 响应类型 "{contentType}"：{body}`,
+  "cli.error.sseNoResponse": "SSE 响应里没有 JSON-RPC 响应消息",
+  "cli.error.unsupportedConfigField": `config set 不支持这些字段：{fields}（仅支持 --token、--timeout、--language）`,
   "cli.error.balanceFailed": "余额查询返回错误",
   "cli.error.toolFailed": `工具 "{tool}" 返回错误`,
   "cli.error.schemaUsage": "用法: dataify schema <tool>",
@@ -608,7 +624,7 @@ MESSAGES.zh = {
   "mcp.install.codex": "正在更新 Codex MCP 配置...",
   "mcp.install.vscode": "正在更新 VS Code MCP 配置...",
   "mcp.install.generic": "正在安装 {name} MCP...",
-  "mcp.status.claudeNotFound": "从 Node.js 中未找到 claude 命令，请确认 Claude Code 已安装且位于 PATH 中。",
+  "mcp.status.claudeNotFound": "未找到 claude 命令：请先安装 Claude Code CLI，并确认 claude 已在 PATH 中（安装后需要重开终端）。",
   "mcp.status.claudeFailed": "claude mcp add 执行失败。",
   "mcp.status.claudeInstalled": "已通过 claude mcp add --scope user 安装。",
   "mcp.status.updated": "已更新 {file}",

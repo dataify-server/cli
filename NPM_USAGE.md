@@ -167,7 +167,7 @@ dataify
 /_____/\__,_/\__/\__,_/_/_/  \__, /  
                              /____/   
 
-Dataify MCP CLI 0.3.6 interactive mode
+Dataify MCP CLI 0.3.7 interactive mode
 Common commands:
   /init                              Run the setup wizard
   /login                             Sign in with your browser

@@ -1,4 +1,4 @@
-import { parseKnownOptions } from "./args.js";
+import { parseKnownOptions, rejectUnknownOptions } from "./args.js";
 import { runLogin } from "./auth-commands.js";
 import { logoText } from "./brand.js";
 import { t } from "./i18n.js";
@@ -19,7 +19,8 @@ const OPTION_NAMES = new Set([
 ]);
 
 export async function runInit(tokens = []) {
-  const { options } = parseKnownOptions(tokens, OPTION_NAMES);
+  const { options, rest } = parseKnownOptions(tokens, OPTION_NAMES);
+  rejectUnknownOptions(rest);
   if (optionEnabled(options.help)) {
     process.stdout.write(initHelpText());
     return;

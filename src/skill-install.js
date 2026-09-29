@@ -3,7 +3,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { parseKnownOptions } from "./args.js";
+import { parseKnownOptions, rejectUnknownOptions } from "./args.js";
 import { t } from "./i18n.js";
 import { createSelector } from "./select.js";
 import { withSpinner } from "./spinner.js";
@@ -48,7 +48,8 @@ const AGENTS = [
 const OPTION_NAMES = new Set(["agent", "agents", "skill", "skills", "all", "dir", "repo", "ref", "github_token", "help"]);
 
 export async function runSkillInstaller(tokens = []) {
-  const { options } = parseKnownOptions(tokens, OPTION_NAMES);
+  const { options, rest } = parseKnownOptions(tokens, OPTION_NAMES);
+  rejectUnknownOptions(rest);
   if (optionEnabled(options.help)) {
     process.stdout.write(skillHelpText());
     return;

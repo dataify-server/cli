@@ -2,7 +2,7 @@ import readline from "node:readline";
 import { stdin, stdout } from "node:process";
 import { parseKnownOptions, parseToolArgs } from "./args.js";
 import { t } from "./i18n.js";
-import { formatToolResult, printToolSchema, writeOutput } from "./output.js";
+import { detectToolBusinessError, formatToolResult, printToolSchema, writeOutput } from "./output.js";
 import { tokenizeCommandLine } from "./repl.js";
 import { createSelector } from "./select.js";
 import { withSpinner } from "./spinner.js";
@@ -115,6 +115,14 @@ export async function runCategoryWizard(category, client, tokens, globalOptions 
   if (result?.isError) {
     const text = formatToolResult(result, { raw: optionEnabled(globalOptions.raw) || optionEnabled(options.raw) });
     const error = new Error(text.trim() || t("cli.error.toolFailed", { tool: selectedTool.name }));
+    error.exitCode = 2;
+    throw error;
+  }
+
+  // 与 cli.js 的直接调用保持一致：业务错误（顶层 code>=400）也要以退出码 2 结束。
+  const businessError = detectToolBusinessError(result);
+  if (businessError) {
+    const error = new Error(businessError.message || t("cli.error.toolFailed", { tool: selectedTool.name }));
     error.exitCode = 2;
     throw error;
   }
