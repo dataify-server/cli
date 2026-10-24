@@ -16,7 +16,7 @@
 | `--header <K=V>` | 追加一个自定义 HTTP 请求头，格式为 `Name=value`，可多次使用。 |
 | `--debug` | 把请求 URL（Token 已脱敏）与 JSON-RPC 请求体打印到 stderr，便于排查；不影响实际请求参数与结果。 |
 | `--help` | 显示帮助文本。 |
-| `--version` | 显示 CLI 版本号（`0.3.8`）。 |
+| `--version` | 显示 CLI 版本号（`0.3.9`）。 |
 
 > **关于 MCP 地址与工具列表**：CLI 内部的 MCP 地址固定为 `https://mcp.dataify.com/mcp`，`tools` 查询参数也固定为内置的 27 个工具类别（见文末"固定 MCP 地址"）。历史上出现过的 `--server` / `--endpoint` / `--tools` 选项**已移除**；现在传入会被判为未知选项并报 `Unsupported option`。你只需要配置 Token。
 

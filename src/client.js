@@ -5,6 +5,39 @@ import { VERSION } from "./version.js";
 const JSON_RPC_VERSION = "2.0";
 const DEFAULT_PROTOCOL_VERSION = "2025-11-25";
 
+// CLI 对外保留 --source，调用 MCP 前映射为服务端要求的 tool_code。
+const AI_WEB_SEARCH_SOURCE_TO_TOOL_CODE = new Map([
+  ["web", "网页搜索"],
+  ["news", "新闻搜索"],
+  ["shopping", "购物搜索"],
+  ["scholar", "学术搜索"]
+]);
+
+export function normalizeToolArguments(toolName, args = {}) {
+  if (toolName !== "ai_web_search" || !args || typeof args !== "object" || Array.isArray(args)) {
+    return args;
+  }
+  if (!Object.prototype.hasOwnProperty.call(args, "source")) {
+    return args;
+  }
+
+  const normalized = { ...args };
+  const rawSource = String(normalized.source ?? "").trim().toLowerCase();
+  delete normalized.source;
+
+  // 显式传入 tool_code 时以 tool_code 为准，但仍移除 source，避免 MCP 拒绝额外字段。
+  if (normalized.tool_code !== undefined && normalized.tool_code !== null && String(normalized.tool_code).trim() !== "") {
+    return normalized;
+  }
+
+  const toolCode = AI_WEB_SEARCH_SOURCE_TO_TOOL_CODE.get(rawSource);
+  if (!toolCode) {
+    throw new Error(t("cli.error.aiWebSource", { source: rawSource || "<empty>" }));
+  }
+  normalized.tool_code = toolCode;
+  return normalized;
+}
+
 /** --debug 输出用：只留首尾各 4 位，避免 Token 明文进日志、截图或工单。 */
 export function maskSecret(value) {
   const text = String(value ?? "");
@@ -72,7 +105,7 @@ export class McpHttpClient {
     await this.initialize();
     const response = await this.sendRequest("tools/call", {
       name,
-      arguments: args
+      arguments: normalizeToolArguments(name, args)
     });
     return response.result;
   }

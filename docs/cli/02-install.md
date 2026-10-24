@@ -43,7 +43,7 @@ npm install -g .
 
 ```bash
 dataify --version
-# 输出：0.3.8
+# 输出：0.3.9
 ```
 
 > **说明**：全局安装后命令就是 `dataify`。

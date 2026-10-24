@@ -167,7 +167,7 @@ dataify
 /_____/\__,_/\__/\__,_/_/_/  \__, /  
                              /____/   
 
-Dataify MCP CLI 0.3.8 interactive mode
+Dataify MCP CLI 0.3.9 interactive mode
 Common commands:
   /init                              Run the setup wizard
   /login                             Sign in with your browser
@@ -454,6 +454,14 @@ dataify google_search --q "pizza" --arg-json json=1
 ```bash
 dataify request_web_unlocker --url https://example.com --type html
 ```
+
+### AI Web 搜索
+
+```bash
+dataify ai_web_search --query "OpenAI" --source news --arg-json max_results=5
+```
+
+`--source` 支持 `web`、`news`、`shopping`、`scholar`，CLI 会自动映射为 MCP 的 `tool_code`。直接调用 MCP 时使用 `tool_code`；Web API/SDK 使用 `unique_id + source`。
 
 ## 输出原始结果
 

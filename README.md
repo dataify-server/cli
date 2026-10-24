@@ -201,6 +201,14 @@ Call the web unlocker:
 dataify request_web_unlocker --url https://example.com --type html
 ```
 
+Search AI Web:
+
+```bash
+dataify ai_web_search --query "OpenAI" --source news --arg-json max_results=5
+```
+
+`--source` accepts `web`, `news`, `shopping`, or `scholar`; the CLI maps it to the MCP `tool_code`. Direct MCP calls use `tool_code`; Web API/SDK calls use `unique_id + source`.
+
 ## Interactive Mode
 
 Start interactive mode:
