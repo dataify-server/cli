@@ -103,7 +103,7 @@ Examples:
   dataify language zh
   dataify google_search --q "pizza" --json 1
   dataify request_web_unlocker --url https://example.com --type html
-  dataify call query_common_collection_api_task_status --status -1 --page 1 --pageSize 10
+  dataify call web_unlock_task --status -1 --page 1 --pageSize 10
 `,
   "cli.error.noToken": "No Dataify token found. Run dataify login, or pass --token TOKEN.",
   "cli.error.unknownCommand": `Unknown command "{command}"`,
@@ -282,6 +282,8 @@ Fixed MCP URL:
   "mcp.class.zillow": "Zillow property search and listing data.",
   "mcp.class.ebay": "eBay product, category, seller, and listing data.",
   "mcp.class.ebay": "eBay product, category, seller, and listing data.",
+  "mcp.class.chatgpt": "Collect ChatGPT answers by search terms or a ChatGPT URL.",
+  "mcp.class.ai_web": "AI Web aggregation search, page extraction, and site URL discovery.",
   "mcp.restartHint": "Restart selected agent tools if they are already running.",
   "mcp.label.agent": "agent",
   "mcp.label.toolClass": "tool class",
@@ -435,7 +437,7 @@ MESSAGES.zh = {
   dataify language zh
   dataify google_search --q "pizza" --json 1
   dataify request_web_unlocker --url https://example.com --type html
-  dataify call query_common_collection_api_task_status --status -1 --page 1 --pageSize 10
+  dataify call web_unlock_task --status -1 --page 1 --pageSize 10
 `,
   "cli.error.noToken": "未找到 Dataify Token。请运行 dataify login，或通过 --token TOKEN 传入。",
   "cli.error.unknownCommand": `未知命令 "{command}"`,
@@ -614,6 +616,8 @@ MESSAGES.zh = {
   "mcp.class.zillow": "Zillow 房源搜索与列表数据。",
   "mcp.class.ebay": "eBay 商品、类别、卖家与列表数据。",
   "mcp.class.ebay": "eBay 商品、类别、卖家与列表数据。",
+  "mcp.class.chatgpt": "通过搜索关键词或 ChatGPT URL 采集答案内容。",
+  "mcp.class.ai_web": "AI Web 聚合搜索、网页正文提取与站点地址发现。",
   "mcp.restartHint": "如果对应的 AI 客户端已在运行，请重启后再使用。",
   "mcp.label.agent": "客户端",
   "mcp.label.toolClass": "工具类别",

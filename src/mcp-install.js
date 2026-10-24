@@ -44,6 +44,8 @@ const MCP_CLASSES = [
   "crunchbase",
   "zillow",
   "ebay",
+  "chatgpt",
+  "ai_web",
 ].map((id) => ({ id, name: id }));
 
 function localizeItems(items, prefix) {

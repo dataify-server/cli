@@ -391,14 +391,18 @@ function checkboxSelectMany({ title, items, defaultSelected }) {
 
     // 只做防抖重画：拖动过程中一帧都不写，等停下来再补一帧。
     const scheduleRender = () => {
-      if (done || terminalSizeKey() === lastRenderedSize) {
+      if (done) {
         return;
       }
       if (resizeTimer) {
         clearTimeout(resizeTimer);
       }
+      // 终端可能在 resize 事件触发后才更新 columns/rows；等防抖结束再比较尺寸。
       resizeTimer = setTimeout(() => {
         resizeTimer = null;
+        if (done || terminalSizeKey() === lastRenderedSize) {
+          return;
+        }
         render();
       }, RESIZE_DEBOUNCE_MS);
     };
@@ -503,14 +507,18 @@ function listSelectOne({ title, items, defaultSelected }) {
 
     // 只做防抖重画：拖动过程中一帧都不写，等停下来再补一帧。
     const scheduleRender = () => {
-      if (done || terminalSizeKey() === lastRenderedSize) {
+      if (done) {
         return;
       }
       if (resizeTimer) {
         clearTimeout(resizeTimer);
       }
+      // 终端可能在 resize 事件触发后才更新 columns/rows；等防抖结束再比较尺寸。
       resizeTimer = setTimeout(() => {
         resizeTimer = null;
+        if (done || terminalSizeKey() === lastRenderedSize) {
+          return;
+        }
         render();
       }, RESIZE_DEBOUNCE_MS);
     };

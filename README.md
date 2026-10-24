@@ -564,7 +564,7 @@ npm uninstall -g dataify-mcp-cli
 The CLI uses a fixed MCP endpoint:
 
 ```text
-https://mcp.dataify.com/mcp?token=<your_api_token>&tools=user_info,web_unlocker,google_serp,yandex_serp,duckduckgo_serp,bing_serp,amazon,youtube,facebook,instagram,reddit,walmart,google,booking,indeed,airbnb,google_play_store,github,tiktok,linkedin,glassdoor,twitter,crunchbase,zillow,ebay
+https://mcp.dataify.com/mcp?token=<your_api_token>&tools=user_info,web_unlocker,google_serp,yandex_serp,duckduckgo_serp,bing_serp,amazon,youtube,facebook,instagram,reddit,walmart,google,booking,indeed,airbnb,google_play_store,github,tiktok,linkedin,glassdoor,twitter,crunchbase,zillow,ebay,chatgpt,ai_web
 ```
 
 Only `<your_api_token>` is configurable. The MCP server URL and `tools` query parameter are fixed in the CLI.

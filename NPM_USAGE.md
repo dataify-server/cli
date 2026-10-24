@@ -167,7 +167,7 @@ dataify
 /_____/\__,_/\__/\__,_/_/_/  \__, /  
                              /____/   
 
-Dataify MCP CLI 0.3.7 interactive mode
+Dataify MCP CLI 0.3.8 interactive mode
 Common commands:
   /init                              Run the setup wizard
   /login                             Sign in with your browser
@@ -535,7 +535,7 @@ npm uninstall -g dataify-mcp-cli
 CLI 内部使用固定 MCP 地址：
 
 ```text
-https://mcp.dataify.com/mcp?token=<your_api_token>&tools=user_info,web_unlocker,google_serp,yandex_serp,duckduckgo_serp,bing_serp,amazon,youtube,facebook,instagram,reddit,walmart,google,booking,indeed,airbnb,google_play_store,github,tiktok,linkedin,glassdoor,twitter,crunchbase,zillow,ebay
+https://mcp.dataify.com/mcp?token=<your_api_token>&tools=user_info,web_unlocker,google_serp,yandex_serp,duckduckgo_serp,bing_serp,amazon,youtube,facebook,instagram,reddit,walmart,google,booking,indeed,airbnb,google_play_store,github,tiktok,linkedin,glassdoor,twitter,crunchbase,zillow,ebay,chatgpt,ai_web
 ```
 
 用户只需要配置 `<your_api_token>`，不需要手动配置 MCP 地址或 tools 参数。

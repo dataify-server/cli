@@ -5,7 +5,7 @@ import path from "node:path";
 const CONFIG_DIR = ".dataify-mcp-cli";
 const CONFIG_FILE = "config.json";
 export const DEFAULT_SERVER = "https://mcp.dataify.com/mcp";
-export const DEFAULT_TOOLS = "user_info,web_unlocker,google_serp,yandex_serp,duckduckgo_serp,bing_serp,amazon,youtube,facebook,instagram,reddit,walmart,google,booking,indeed,airbnb,google_play_store,github,tiktok,linkedin,glassdoor,twitter,crunchbase,zillow,ebay";
+export const DEFAULT_TOOLS = "user_info,web_unlocker,google_serp,yandex_serp,duckduckgo_serp,bing_serp,amazon,youtube,facebook,instagram,reddit,walmart,google,booking,indeed,airbnb,google_play_store,github,tiktok,linkedin,glassdoor,twitter,crunchbase,zillow,ebay,chatgpt,ai_web";
 export const DEFAULT_AUTH_API_BASE_URL = "https://api.dataify.com";
 export const DEFAULT_DASHBOARD_LOGIN_URL = "https://dashboard.dataify.com/login";
 
